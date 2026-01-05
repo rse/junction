@@ -1,0 +1,60 @@
+{
+    "name":                           "junction",
+    "version":                        "1.0.0",
+    "description":                    "MQTT Communication Junction",
+    "keywords":                       [ "mqtt", "rpc" ],
+    "license":                        "MIT",
+    "repository":                     { "type": "git", "url": "git+https://github.com/rse/junction.git" },
+    "homepage":                       "https://github.com/rse/junction",
+    "bugs":                           "https://github.com/rse/junction/issues",
+    "author": {
+        "name":                       "Dr. Ralf S. Engelschall",
+        "email":                      "rse@engelschall.com",
+        "url":                        "http://engelschall.com"
+    },
+    "type":                           "module",
+    "types":                          "./dst-stage1/junction.d.ts",
+    "module":                         "./dst-stage2/junction.esm.js",
+    "main":                           "./dst-stage2/junction.cjs.js",
+    "browser":                        "./dst-stage2/junction.umd.js",
+    "exports": {
+        ".": {
+            "import":                 { "types": "./dst-stage1/junction.d.ts", "default": "./dst-stage2/junction.esm.js" },
+            "require":                { "types": "./dst-stage1/junction.d.ts", "default": "./dst-stage2/junction.cjs.js" }
+        }
+    },
+    "devDependencies": {
+        "@rse/stx":                   "1.1.4",
+        "shx":                        "0.4.0",
+        "eslint":                     "9.39.2",
+        "eslint-plugin-node":         "11.1.0",
+        "globals":                    "17.0.0",
+        "@eslint/js":                 "9.39.2",
+        "@eslint/eslintrc":           "3.3.3",
+        "jiti":                       "2.6.1",
+        "tsx":                        "4.21.0",
+        "typescript":                 "5.9.3",
+        "typescript-eslint":          "8.51.0",
+        "@typescript-eslint/parser":  "8.51.0",
+        "mqtt":                       "5.14.1",
+        "vite":                       "7.3.0",
+        "vite-plugin-singlefile":     "2.3.0",
+        "vite-plugin-node-polyfills": "0.24.0",
+        "@wroud/vite-plugin-tsc":     "0.12.2"
+    },
+    "peerDependencies": {
+        "mqtt":                       ">=4.0.0"
+    },
+    "dependencies": {
+        "nanoid":                     "5.1.6",
+        "cbor":                       "10.0.11"
+    },
+    "engines": {
+        "node":                       ">=16.0.0"
+    },
+    "scripts": {
+        "prepublishOnly":             "npm start build",
+        "start":                      "stx -v4 -c etc/stx.conf",
+        "test":                       "npm start test"
+    }
+}
