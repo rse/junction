@@ -1,7 +1,7 @@
 
 import Mosquitto from "mosquitto"
 import MQTT      from "mqtt"
-import Junction  from "junction"
+import MQTTp     from "mqtt-plus"
 
 const mosquitto = new Mosquitto({
     listen: [ { protocol: "wss", address: "127.0.0.1", port: 8443 } ]
@@ -20,7 +20,7 @@ type API = {
     "example/hello":  (a1: string, a2: number) => string
 }
 
-const junction = new Junction<API>(mqtt, { codec: "json" })
+const mqttp = new MQTTp<API>(mqtt, { codec: "json" })
 
 mqtt.on("error",     (err)            => { console.log("ERROR", err) })
 mqtt.on("offline",   ()               => { console.log("OFFLINE") })
@@ -30,15 +30,15 @@ mqtt.on("message",   (topic, message) => { console.log("RECEIVED", topic, messag
 
 mqtt.on("connect", () => {
     console.log("CONNECT")
-    junction.subscribe("example/sample", (a1, a2, info) => {
+    mqttp.subscribe("example/sample", (a1, a2, info) => {
         console.log("example/sample: info: ", a1, a2, info.sender)
     })
-    junction.emit("example/sample", "world", 42)
-    junction.register("example/hello", (a1, a2, info) => {
+    mqttp.emit("example/sample", "world", 42)
+    mqttp.register("example/hello", (a1, a2, info) => {
         console.log("example/hello: request: ", a1, a2, info.sender)
         return `${a1}:${a2}`
     })
-    junction.call("example/hello", "world", 42).then(async (result) => {
+    mqttp.call("example/hello", "world", 42).then(async (result) => {
         console.log("example/hello success: ", result)
         mqtt.end()
         await mosquitto.stop()

@@ -1,7 +1,7 @@
 
 import Mosquitto    from "mosquitto"
 import MQTT         from "mqtt"
-import Junction     from "junction"
+import MQTTp        from "mqtt-plus"
 import type { API } from "./sample-common"
 
 const mosquitto = new Mosquitto({
@@ -16,7 +16,7 @@ const mqtt = MQTT.connect("ws://127.0.0.1:8443", {
     password: "example"
 })
 
-const junction = new Junction<API>(mqtt, { codec: "json" })
+const mqttp = new MQTTp<API>(mqtt, { codec: "json" })
 
 mqtt.on("error",     (err)            => { console.log("ERROR", err) })
 mqtt.on("offline",   ()               => { console.log("OFFLINE") })
@@ -26,10 +26,10 @@ mqtt.on("message",   (topic, message) => { console.log("RECEIVED", topic, messag
 
 mqtt.on("connect", () => {
     console.log("CONNECT")
-    junction.subscribe("example/sample", (a1, a2) => {
+    mqttp.subscribe("example/sample", (a1, a2) => {
         console.log("example/sample: info: ", a1, a2)
     })
-    junction.register("example/hello", (a1, a2) => {
+    mqttp.register("example/hello", (a1, a2) => {
         console.log("example/hello: request: ", a1, a2)
         return `${a1}:${a2}`
     })
