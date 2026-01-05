@@ -31,11 +31,11 @@ mqtt.on("message",   (topic, message) => { console.log("RECEIVED", topic, messag
 mqtt.on("connect", () => {
     console.log("CONNECT")
     junction.subscribe("example/sample", (a1, a2, info) => {
-        console.log("example/sample: info: ", a1, a2, info.peerId)
+        console.log("example/sample: info: ", a1, a2, info.sender)
     })
     junction.emit("example/sample", "world", 42)
     junction.register("example/hello", (a1, a2, info) => {
-        console.log("example/hello: request: ", a1, a2, info.peerId)
+        console.log("example/hello: request: ", a1, a2, info.sender)
         return `${a1}:${a2}`
     })
     junction.call("example/hello", "world", 42).then(async (result) => {
