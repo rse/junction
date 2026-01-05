@@ -78,7 +78,11 @@ export type WithInfo<F> = F extends (...args: infer P) => infer R
     : never
 
 /*  type utilities for generic API  */
-export type APISchema = Record<string, (...args: any[]) => any>
+export type APISchema = Record<
+    string,
+    ((...args: any[]) => void) |
+    ((...args: any[]) => any)
+>
 
 /*  extract event keys where return type IS void (events: subscribe/notify/control)  */
 export type EventKeys<T> = string extends keyof T ? string : {

@@ -137,11 +137,14 @@ The **MQTT+** API provides the following methods:
           }
       )
 
-  The `API` is an optional TypeScript type describing the available
-  events and services.
+  The `API` is an optional TypeScript type `Record<string, ((...args:
+  any[]) => void) | ((...args: any[]) => any)>`, describing the
+  available events and services. Callbacks without return values
+  describe events, callbacks with return values describe services.
 
   The `mqtt` is the [MQTT.js](https://www.npmjs.com/package/mqtt) instance,
-  which has to be establish separately.
+  which has to be established separately.
+
   The optional `options` object supports the following fields:
   - `id`: Custom MQTT peer identifier (default: auto-generated NanoID).
   - `codec`: Encoding format (default: `cbor`).
@@ -165,7 +168,7 @@ The **MQTT+** API provides the following methods:
       subscribe(
           event:    string,
           options?: MQTT::IClientSubscribeOptions
-          callback: (...params: any[], info?: sender: string, receiver?: string) => void
+          callback: (...params: any[], info: { sender: string, receiver?: string }) => void
       ): Promise<Subscription>
 
   Subscribe to an event.
@@ -185,7 +188,7 @@ The **MQTT+** API provides the following methods:
       register(
           service:  string,
           options?: MQTT::IClientSubscribeOptions
-          callback: (...params: any[], info?: sender: string, receiver?: string) => any
+          callback: (...params: any[], info: { sender: string, receiver?: string }) => any
       ): Promise<Registration>
 
   Register a service.
@@ -253,7 +256,7 @@ The **MQTT+** API provides the following methods:
 Internals
 ---------
 
-In the following, assume that an MQTT+ instance is created with:
+In the following, we assume that an **MQTT+** instance is created with:
 
 ```ts
 import MQTT  from "mqtt"
@@ -278,8 +281,8 @@ ones):
 
 ```json
 {
-    "id":      "RRRRRRRRRRRRRRRRRRRRR",
-    "sender":  "SSSSSSSSSSSSSSSSSSSSS",
+    "id":      "vwLzfQDu2uEeOdOfIlT42",
+    "sender":  "2IBMSk0NPnrz1AeTERoea",
     "method":  "example/hello",
     "params":  [ "world", 42 ]
 }
@@ -296,12 +299,12 @@ mqttp.register("example/hello", (a1, a2) => {
 ...and then its result, in the above `mqttp.call()` example `"world:42"`, is then
 sent back as the following success response
 message to the temporary (client-specific) MQTT topic
-`example/hello/service-response/SSSSSSSSSSSSSSSSSSSSS`:
+`example/hello/service-response/2IBMSk0NPnrz1AeTERoea`:
 
 ```json
 {
-    "id":      "RRRRRRRRRRRRRRRRRRRRR",
-    "sender":  "SSSSSSSSSSSSSSSSSSSSS",
+    "id":      "vwLzfQDu2uEeOdOfIlT42",
+    "sender":  "2IBMSk0NPnrz1AeTERoea",
     "result":  "world:42"
 }
 ```
@@ -428,8 +431,6 @@ The output will be:
 ```
 $ node sample.ts
 CONNECT
-example/sample: info:  world 42 undefined
-RECEIVED example/sample/event-notice {"id":"GraDZnA4BLrF66g9qmpPX","sender":"2IBMSk0NPnrz1AeTERoea","event":"example/sample","params":["world",42]}
 RECEIVED example/hello/service-request {"id":"vwLzfQDu2uEeOdOfIlT42","sender":"2IBMSk0NPnrz1AeTERoea","service":"example/hello","params":["world",42]}
 example/hello: request:  world 42 undefined
 RECEIVED example/hello/service-response/2IBMSk0NPnrz1AeTERoea {"id":"vwLzfQDu2uEeOdOfIlT42","sender":"2IBMSk0NPnrz1AeTERoea","receiver":"2IBMSk0NPnrz1AeTERoea","result":"world:42"}
