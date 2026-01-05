@@ -1,6 +1,6 @@
 /*
-**  MQTT-JSON-RPC -- JSON-RPC protocol over MQTT communication
-**  Copyright (c) 2018-2025 Dr. Ralf S. Engelschall <rse@engelschall.com>
+**  MQTT+ -- MQTT Communication Patterns
+**  Copyright (c) 2018-2026 Dr. Ralf S. Engelschall <rse@engelschall.com>
 **
 **  Permission is hereby granted, free of charge, to any person obtaining
 **  a copy of this software and associated documentation files (the
@@ -28,12 +28,12 @@ import { MqttClient, IClientPublishOptions,
 import { nanoid }                            from "nanoid"
 
 /*  internal requirements  */
-import Codec                                 from "./junction-codec"
+import Codec                                 from "./mqtt-plus-codec"
 import Msg, {
     EventEmission,
     ServiceRequest,
     ServiceResponseSuccess,
-    ServiceResponseError }                   from "./junction-msg"
+    ServiceResponseError }                   from "./mqtt-plus-msg"
 
 /*  type of a wrapped receiver id (for method overloading)  */
 export type Receiver = { __receiver: string }
@@ -96,8 +96,8 @@ export type ServiceKeys<T> = string extends keyof T ? string : {
     : never
 }[ keyof T ]
 
-/*  Junction API class  */
-export default class Junction<T extends APISchema = APISchema> {
+/*  MQTTp API class  */
+export default class MQTTp<T extends APISchema = APISchema> {
     private options:      APIOptions
     private codec:        Codec
     private msg           = new Msg()

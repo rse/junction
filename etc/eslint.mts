@@ -1,6 +1,6 @@
 /*
-**  Junction -- MQTT Communication Junction
-**  Copyright (c) 2026 Dr. Ralf S. Engelschall <rse@engelschall.com>
+**  MQTT+ -- MQTT Communication Patterns
+**  Copyright (c) 2018-2026 Dr. Ralf S. Engelschall <rse@engelschall.com>
 **
 **  Permission is hereby granted, free of charge, to any person obtaining
 **  a copy of this software and associated documentation files (the

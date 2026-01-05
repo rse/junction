@@ -1,27 +1,26 @@
 {
-    "name":                           "@rse/junction",
+    "name":                           "mqtt-plus",
     "version":                        "0.9.0",
-    "publishConfig":                  { "access": "public" },
-    "description":                    "MQTT Communication Junction",
-    "keywords":                       [ "mqtt", "rpc" ],
+    "description":                    "MQTT Communication Patterns",
+    "keywords":                       [ "mqtt", "event", "service", "rpc", "request", "response" ],
     "license":                        "MIT",
-    "repository":                     { "type": "git", "url": "git+https://github.com/rse/junction.git" },
-    "homepage":                       "https://github.com/rse/junction",
-    "bugs":                           "https://github.com/rse/junction/issues",
+    "repository":                     { "type": "git", "url": "git+https://github.com/rse/mqtt-plus.git" },
+    "homepage":                       "https://github.com/rse/mqtt-plus",
+    "bugs":                           "https://github.com/rse/mqtt-plus/issues",
     "author": {
         "name":                       "Dr. Ralf S. Engelschall",
         "email":                      "rse@engelschall.com",
         "url":                        "http://engelschall.com"
     },
     "type":                           "module",
-    "types":                          "./dst-stage1/junction.d.ts",
-    "module":                         "./dst-stage2/junction.esm.js",
-    "main":                           "./dst-stage2/junction.cjs.js",
-    "browser":                        "./dst-stage2/junction.umd.js",
+    "types":                          "./dst-stage1/mqtt-plus.d.ts",
+    "module":                         "./dst-stage2/mqtt-plus.esm.js",
+    "main":                           "./dst-stage2/mqtt-plus.cjs.js",
+    "browser":                        "./dst-stage2/mqtt-plus.umd.js",
     "exports": {
         ".": {
-            "import":                 { "types": "./dst-stage1/junction.d.ts", "default": "./dst-stage2/junction.esm.js" },
-            "require":                { "types": "./dst-stage1/junction.d.ts", "default": "./dst-stage2/junction.cjs.js" }
+            "import":                 { "types": "./dst-stage1/mqtt-plus.d.ts", "default": "./dst-stage2/mqtt-plus.esm.js" },
+            "require":                { "types": "./dst-stage1/mqtt-plus.d.ts", "default": "./dst-stage2/mqtt-plus.cjs.js" }
         }
     },
     "devDependencies": {

@@ -1,13 +1,13 @@
 
-<img src="https://raw.githubusercontent.com/rse/junction/master/etc/logo.svg" width="400" align="right" alt=""/>
+<img src="https://raw.githubusercontent.com/rse/mqttp/master/etc/logo.svg" width="400" align="right" alt=""/>
 
-Junction
-========
+MQTT+
+=====
 
-[MQTT](http://mqtt.org/) Communication Junction
+[MQTT](http://mqtt.org/) Communication Addons
 
 <p/>
-<img src="https://nodei.co/npm/@rse/junction.png?downloads=true&stars=true" alt=""/>
+<img src="https://nodei.co/npm/@rse/mqttp.png?downloads=true&stars=true" alt=""/>
 
 [![github (author stars)](https://img.shields.io/github/stars/rse?logo=github&label=author%20stars&color=%233377aa)](https://github.com/rse)
 [![github (author followers)](https://img.shields.io/github/followers/rse?label=author%20followers&logo=github&color=%234477aa)](https://github.com/rse)
@@ -16,7 +16,7 @@ Installation
 ------------
 
 ```shell
-$ npm install junction
+$ npm install mqtt mqtt-plus
 ```
 
 About
@@ -24,13 +24,14 @@ About
 
 This is an addon API for the excellent
 [MQTT.js](https://www.npmjs.com/package/mqtt)
-JavaScript/TypeScript API for [Remote Procedure
-Call](https://en.wikipedia.org/wiki/Remote_procedure_call) (RPC)
-communication. This allows a bi-directional request/response-style
+JavaScript/TypeScript API for additional
+communication patterns like [Remote Procedure
+Call](https://en.wikipedia.org/wiki/Remote_procedure_call) (RPC).
+This allows a bi-directional request/response-style
 communication over the technically uni-directional message protocol
 [MQTT](http://mqtt.org).
 
-Conceptually, this RPC API provides two types of communication patterns:
+Conceptually, this MQTT addon API provides two types of communication patterns:
 
 - **Event Emission**:
   Event Emission is a *uni-directional* communication pattern.
@@ -51,7 +52,7 @@ Conceptually, this RPC API provides two types of communication patterns:
 
 Notice: this is similar to
 [MQTT-JSON-RPC](https://github.com/rse/mqtt-json-rpc) of the same
-author, but instead of just JSON, Junction encodes packets as JSON or
+author, but instead of just JSON, MQTT+ encodes packets as JSON or
 CBOR (default), uses an own packet format (allowing sender and receiver
 information) and uses shorter NanoIDs instead of longer UUIDs for
 identification of sender, receiver and requests.
@@ -72,17 +73,17 @@ export type API = {
 
 ```ts
 import MQTT         from "mqtt"
-import Junction     from "junction"
+import MQTTp        from "mqtt-plus"
 import type { API } from [...]
 
-const mqtt = MQTT.connect("wss://127.0.0.1:8883", { ... })
-const junction = new Junction<API>(mqtt)
+const mqtt  = MQTT.connect("wss://127.0.0.1:8883", { ... })
+const mqttp = new MQTTp<API>(mqtt)
 
 mqtt.on("connect", async () => {
-    junction.subscribe("example/sample", (a1, a2) => {
+    mqttp.subscribe("example/sample", (a1, a2) => {
         console.log("example/sample: ", a1, a2)
     })
-    junction.register("example/hello", (a1, a2) => {
+    mqttp.register("example/hello", (a1, a2) => {
         console.log("example/hello: ", a1, a2)
         return `${a1}:${a2}`
     })
@@ -93,15 +94,15 @@ mqtt.on("connect", async () => {
 
 ```ts
 import MQTT         from "mqtt"
-import Junction     from "junction"
+import MQTTp        from "mqtt-plus"
 import type { API } from [...]
 
 const mqtt = MQTT.connect("wss://127.0.0.1:8883", { ... })
-const junction = new Junction<API>(mqtt)
+const mqttp = new MQTTp<API>(mqtt)
 
 mqtt.on("connect", () => {
-    junction.emit("example/sample", "foo", true)
-    junction.call("example/hello", "world", 42).then((response) => {
+    mqttp.emit("example/sample", "foo", true)
+    mqttp.call("example/hello", "world", 42).then((response) => {
         console.log("example/hello response: ", response)
         mqtt.end()
     })
@@ -111,7 +112,7 @@ mqtt.on("connect", () => {
 Application Programming Interface
 ---------------------------------
 
-The Junction API provides the following methods:
+The MQTT+ API provides the following methods:
 
 - **Construction**:<br/>
 
@@ -243,21 +244,21 @@ The Junction API provides the following methods:
 Internals
 ---------
 
-In the following, assume that an RPC instance is created with:
+In the following, assume that an MQTT+ instance is created with:
 
 ```ts
-import MQTT     from "mqtt"
-import Junction from "junction"
+import MQTT  from "mqtt"
+import MQTTp from "mqtt-plus"
 
-const mqtt = MQTT.connect("...", { ... })
-const junction = new Junction(mqtt, { codec: "json" })
+const mqtt  = MQTT.connect("...", { ... })
+const mqttp = new MQTTp(mqtt, { codec: "json" })
 ```
 
 Internally, remote services are assigned to MQTT topics. When calling a
 remote service named `example/hello` with parameters `"world"` and `42` via...
 
 ```ts
-junction.call("example/hello", "world", 42).then((result) => {
+mqttp.call("example/hello", "world", 42).then((result) => {
     ...
 })
 ```
@@ -278,12 +279,12 @@ ones):
 Beforehand, this `example/hello` service should have been registered with...
 
 ```ts
-junction.register("example/hello", (a1, a2) => {
+mqttp.register("example/hello", (a1, a2) => {
     return `${a1}:${a2}`
 })
 ```
 
-...and then its result, in the above `junction.call()` example `"world:42"`, is then
+...and then its result, in the above `mqttp.call()` example `"world:42"`, is then
 sent back as the following success response
 message to the temporary (client-specific) MQTT topic
 `example/hello/service-response/SSSSSSSSSSSSSSSSSSSSS`:
@@ -296,7 +297,7 @@ message to the temporary (client-specific) MQTT topic
 }
 ```
 
-The `sender` field is the NanoID of the Junction sender instance and
+The `sender` field is the NanoID of the MQTT+ sender instance and
 `id` is the NanoID of the particular service request. The `sender` is
 used for sending back the response message to the requestor only. The
 `id` is used for correlating the response to the request only.
@@ -304,7 +305,7 @@ used for sending back the response message to the requestor only. The
 Broker Setup
 ------------
 
-For a real test-drive of Junction, install the
+For a real test-drive of MQTT+, install the
 [Mosquitto](https://mosquitto.org/) MQTT broker and a `mosquitto.conf`
 file like...
 
@@ -364,14 +365,14 @@ for an equal setup.
 Example
 -------
 
-You can test-drive Junction with a complete [sample](sample/sample.ts) to see
-it in action and tracing its communication (the typing of the `Junction`
+You can test-drive MQTT+ with a complete [sample](sample/sample.ts) to see
+it in action and tracing its communication (the typing of the `MQTTp`
 class with `API` is optional, but strongly suggested):
 
 ```ts
 import Mosquitto from "mosquitto"
 import MQTT      from "mqtt"
-import Junction  from "junction"
+import MQTTp     from "mqtt-plus"
 
 const mosquitto = new Mosquitto()
 await mosquitto.start()
@@ -387,7 +388,7 @@ type API = {
     "example/hello":  (a1: string, a2: number) => string
 }
 
-const junction = new Junction<API>(mqtt, { codec: "json" })
+const mqttp = new MQTTp<API>(mqtt, { codec: "json" })
 
 type Sample = (a: string, b: number) => string
 
@@ -399,11 +400,11 @@ mqtt.on("message",   (topic, message) => { console.log("RECEIVED", topic, messag
 
 mqtt.on("connect", () => {
     console.log("CONNECT")
-    juncton.register("example/hello", (a1, a2) => {
+    mqttp.register("example/hello", (a1, a2) => {
         console.log("example/hello: request: ", a1, a2)
         return `${a1}:${a2}`
     })
-    juncton.call("example/hello", "world", 42).then((result) => {
+    mqttp.call("example/hello", "world", 42).then((result) => {
         console.log("example/hello success: ", result)
         mqtt.end()
         await mosquitto.stop()

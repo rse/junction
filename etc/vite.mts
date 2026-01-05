@@ -1,6 +1,6 @@
 /*
-**  Junction -- MQTT Communication Junction
-**  Copyright (c) 2026 Dr. Ralf S. Engelschall <rse@engelschall.com>
+**  MQTT+ -- MQTT Communication Patterns
+**  Copyright (c) 2018-2026 Dr. Ralf S. Engelschall <rse@engelschall.com>
 **
 **  Permission is hereby granted, free of charge, to any person obtaining
 **  a copy of this software and associated documentation files (the
@@ -48,10 +48,10 @@ export default Vite.defineConfig(({ command, mode }) => ({
             external: formats === "umd" ? [] : [ "stream" ]
         },
         lib: {
-            entry:    "dst-stage1/junction.js",
+            entry:    "dst-stage1/mqtt-plus.js",
             formats:  formats.split(","),
-            name:     "Junction",
-            fileName: (format) => `junction.${format === "es" ? "esm" : format}.js`
+            name:     "MQTTp",
+            fileName: (format) => `mqtt-plus.${format === "es" ? "esm" : format}.js`
         },
         target:                 formats === "umd" ? "es2022" : "node20",
         outDir:                 "dst-stage2",
