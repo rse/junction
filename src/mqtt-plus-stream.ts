@@ -33,8 +33,8 @@ import { nanoid }                    from "nanoid"
 /*  internal requirements  */
 import { StreamChunk }               from "./mqtt-plus-msg"
 import { APISchema, StreamKeys }     from "./mqtt-plus-api"
-import type { Receiver, WithInfo,
-    InfoStream }                     from "./mqtt-plus-base"
+import type { WithInfo, InfoStream } from "./mqtt-plus-info"
+import type { Receiver }             from "./mqtt-plus-receiver"
 import { EventTrait }                from "./mqtt-plus-event"
 
 /*  the attachment result type  */

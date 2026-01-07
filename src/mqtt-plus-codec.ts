@@ -22,7 +22,12 @@
 **  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+/*  external requirements  */
 import CBOR from "cbor"
+
+/*  internal requirements  */
+import { APISchema }                 from "./mqtt-plus-api"
+import { APIOptions, OptionsTrait }  from "./mqtt-plus-options"
 
 /*  the encoder/decoder abstraction  */
 export default class Codec {
@@ -54,6 +59,21 @@ export default class Codec {
         else
             throw new Error("invalid format or wrong data type")
         return result
+    }
+}
+
+/*  Codec trait  */
+export class CodecTrait<T extends APISchema = APISchema> extends OptionsTrait<T> {
+    protected codec: Codec
+
+    /*  construct API class  */
+    constructor(
+        options: Partial<APIOptions> = {}
+    ) {
+        super(options)
+
+        /*  establish a codec  */
+        this.codec = new Codec(this.options.codec)
     }
 }
 

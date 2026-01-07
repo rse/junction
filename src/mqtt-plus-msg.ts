@@ -22,6 +22,10 @@
 **  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+/*  internal requirements  */
+import { APISchema }  from "./mqtt-plus-api"
+import { CodecTrait } from "./mqtt-plus-codec"
+
 /*  base class  */
 export class Base {
     constructor (
@@ -205,3 +209,9 @@ export default class Msg {
             throw new Error("invalid object: not of any known type")
     }
 }
+
+/*  Msg trait  */
+export class MsgTrait<T extends APISchema = APISchema> extends CodecTrait<T> {
+    protected msg = new Msg()
+}
+

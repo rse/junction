@@ -24,18 +24,18 @@
 
 /*  external requirements  */
 import { IClientPublishOptions,
-    IClientSubscribeOptions }        from "mqtt"
-import { nanoid }                    from "nanoid"
+    IClientSubscribeOptions }         from "mqtt"
+import { nanoid }                     from "nanoid"
 
 /*  internal requirements  */
 import {
     ServiceRequest,
     ServiceResponseSuccess,
-    ServiceResponseError }           from "./mqtt-plus-msg"
-import { APISchema, ServiceKeys }    from "./mqtt-plus-api"
-import type { Receiver, WithInfo,
-    InfoService }                    from "./mqtt-plus-base"
-import { StreamTrait }               from "./mqtt-plus-stream"
+    ServiceResponseError }            from "./mqtt-plus-msg"
+import { APISchema, ServiceKeys }     from "./mqtt-plus-api"
+import type { WithInfo, InfoService } from "./mqtt-plus-info"
+import type { Receiver }              from "./mqtt-plus-receiver"
+import { StreamTrait }                from "./mqtt-plus-stream"
 
 /*  the registration result type  */
 export interface Registration {

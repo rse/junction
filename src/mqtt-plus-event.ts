@@ -30,8 +30,8 @@ import { nanoid }                    from "nanoid"
 /*  internal requirements  */
 import { EventEmission }             from "./mqtt-plus-msg"
 import { APISchema, EventKeys }      from "./mqtt-plus-api"
-import type { Receiver, WithInfo,
-    InfoEvent }                      from "./mqtt-plus-base"
+import type { WithInfo, InfoEvent }  from "./mqtt-plus-info"
+import type { Receiver }             from "./mqtt-plus-receiver"
 import { BaseTrait }                 from "./mqtt-plus-base"
 
 /*  the subscription result type  */

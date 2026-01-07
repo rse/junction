@@ -23,64 +23,20 @@
 */
 
 /*  external requirements  */
-import stream                                from "stream"
 import { MqttClient, IClientPublishOptions,
     IClientSubscribeOptions }                from "mqtt"
-import { nanoid }                            from "nanoid"
 
 /*  internal requirements  */
-import Codec                                 from "./mqtt-plus-codec"
 import { APISchema, APIEndpoint }            from "./mqtt-plus-api"
-import Msg, { EventEmission, StreamChunk,
+import { EventEmission, StreamChunk,
     ServiceRequest, ServiceResponseSuccess,
     ServiceResponseError }                   from "./mqtt-plus-msg"
-
-/*  MQTT topic making  */
-export type TopicMake = (name: string, peerId?: string) => string
-
-/*  MQTT topic matching  */
-export type TopicMatch    = (topic: string) => TopicMatching | null
-export type TopicMatching = { name: string, peerId?: string }
-
-/*  API option type  */
-export interface APIOptions {
-    id:                        string
-    codec:                     "cbor" | "json"
-    timeout:                   number
-    chunkSize:                 number
-    topicEventNoticeMake:      TopicMake
-    topicStreamChunkMake:      TopicMake
-    topicServiceRequestMake:   TopicMake
-    topicServiceResponseMake:  TopicMake
-    topicEventNoticeMatch:     TopicMatch
-    topicStreamChunkMatch:     TopicMatch
-    topicServiceRequestMatch:  TopicMatch
-    topicServiceResponseMatch: TopicMatch
-}
-
-/*  type of a wrapped receiver id (for method overloading)  */
-export type Receiver = { __receiver: string }
-
-/*  info types  */
-export interface InfoBase {
-    sender:    string,
-    receiver?: string
-}
-export interface InfoEvent   extends InfoBase {}
-export interface InfoStream  extends InfoBase { stream: stream.Readable }
-export interface InfoService extends InfoBase {}
-
-/*  type utility: extend function with Info parameter  */
-export type WithInfo<F, I extends InfoBase> = F extends (...args: infer P) => infer R
-    ? (...args: [ ...P, info: I ]) => R
-    : never
+import { APIOptions, TopicMatching }         from "./mqtt-plus-options"
+import { ReceiverTrait }                     from "./mqtt-plus-receiver"
 
 /*  MQTTp Base class with shared infrastructure  */
-export class BaseTrait<T extends APISchema = APISchema> {
+export class BaseTrait<T extends APISchema = APISchema> extends ReceiverTrait<T> {
     protected mqtt:     MqttClient
-    protected options:  APIOptions
-    protected codec:    Codec
-    protected msg       = new Msg()
     protected registry  = new Map<string, APIEndpoint>()
 
     /*  construct API class  */
@@ -88,56 +44,10 @@ export class BaseTrait<T extends APISchema = APISchema> {
         mqtt: MqttClient,
         options: Partial<APIOptions> = {}
     ) {
+        super(options)
+
         /*  store MQTT client  */
         this.mqtt = mqtt
-
-        /*  determine options and provide defaults  */
-        this.options = {
-            id:        nanoid(),
-            codec:     "cbor",
-            timeout:   10 * 1000,
-            chunkSize: 16 * 1024,
-            topicEventNoticeMake: (name, peerId) => {
-                return peerId
-                    ? `${name}/event-notice/${peerId}`
-                    : `${name}/event-notice`
-            },
-            topicStreamChunkMake: (name, peerId) => {
-                return peerId
-                    ? `${name}/stream-chunk/${peerId}`
-                    : `${name}/stream-chunk`
-            },
-            topicServiceRequestMake: (name, peerId) => {
-                return peerId
-                    ? `${name}/service-request/${peerId}`
-                    : `${name}/service-request`
-            },
-            topicServiceResponseMake: (name, peerId) => {
-                return peerId
-                    ? `${name}/service-response/${peerId}`
-                    : `${name}/service-response`
-            },
-            topicEventNoticeMatch: (topic) => {
-                const m = topic.match(/^(.+?)\/event-notice(?:\/(.+))?$/)
-                return m ? { name: m[1], peerId: m[2] } : null
-            },
-            topicStreamChunkMatch: (topic) => {
-                const m = topic.match(/^(.+?)\/stream-chunk(?:\/(.+))?$/)
-                return m ? { name: m[1], peerId: m[2] } : null
-            },
-            topicServiceRequestMatch: (topic) => {
-                const m = topic.match(/^(.+?)\/service-request(?:\/(.+))?$/)
-                return m ? { name: m[1], peerId: m[2] } : null
-            },
-            topicServiceResponseMatch: (topic) => {
-                const m = topic.match(/^(.+?)\/service-response\/(.+)$/)
-                return m ? { name: m[1], peerId: m[2] } : null
-            },
-            ...options
-        }
-
-        /*  establish an encoder  */
-        this.codec = new Codec(this.options.codec)
 
         /*  hook into the MQTT message processing  */
         this.mqtt.on("message", (topic, message) => {
@@ -166,30 +76,11 @@ export class BaseTrait<T extends APISchema = APISchema> {
     }
 
     /*  check whether argument has structure of interface IClientPublishOptions  */
-    protected _isIClientPublishOptions (arg: any) {
+    private _isIClientPublishOptions (arg: any) {
         if (typeof arg !== "object")
             return false
         const keys = [ "qos", "retain", "dup", "properties", "cbStorePut" ]
         return Object.keys(arg).every((key) => keys.includes(key))
-    }
-
-    /*  wrap receiver id into object (required for type-safe overloading)  */
-    receiver (id: string) {
-        return { __receiver: id }
-    }
-
-    /*  return client id from wrapper object  */
-    protected _getReceiver (obj: Receiver) {
-        return obj.__receiver
-    }
-
-    /*  detect client id wrapper object  */
-    protected _isReceiver (obj: any): obj is Receiver {
-        return (typeof obj === "object"
-            && obj !== null
-            && "__receiver" in obj
-            && typeof obj.__receiver === "string"
-        )
     }
 
     /*  parse optional peerId and options from variadic arguments  */
@@ -218,9 +109,6 @@ export class BaseTrait<T extends APISchema = APISchema> {
         }
         return { receiver, options, params }
     }
-
-    /*  dispatch parsed message to appropriate handler (base implementation)  */
-    protected _dispatchMessage (_parsed: any): void {}
 
     /*  handle incoming MQTT message  */
     private _onMessage (topic: string, message: Buffer): void {
@@ -263,4 +151,8 @@ export class BaseTrait<T extends APISchema = APISchema> {
         /*  dispatch to trait handlers  */
         this._dispatchMessage(parsed)
     }
+
+    /*  dispatch parsed message to appropriate handler
+        (base implementation, to be overridden in super-traits)  */
+    protected _dispatchMessage (_parsed: any): void {}
 }
