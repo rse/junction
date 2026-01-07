@@ -32,10 +32,10 @@ import { nanoid }                    from "nanoid"
 
 /*  internal requirements  */
 import { StreamChunk }               from "./mqtt-plus-msg"
-import { EventTrait }                from "./mqtt-plus-event"
-import type { Receiver, APISchema,
-    StreamKeys, WithInfo,
+import { APISchema, StreamKeys }     from "./mqtt-plus-api"
+import type { Receiver, WithInfo,
     InfoStream, Attachment }         from "./mqtt-plus-base"
+import { EventTrait }                from "./mqtt-plus-event"
 
 /*  Stream Communication Trait  */
 export class StreamTrait<T extends APISchema> extends EventTrait<T> {

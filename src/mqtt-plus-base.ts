@@ -30,15 +30,13 @@ import { nanoid }                            from "nanoid"
 
 /*  internal requirements  */
 import Codec                                 from "./mqtt-plus-codec"
+import { APISchema, APIEndpoint }            from "./mqtt-plus-api"
 import Msg, {
     EventEmission,
     StreamChunk,
     ServiceRequest,
     ServiceResponseSuccess,
     ServiceResponseError }                   from "./mqtt-plus-msg"
-
-/*  type of a wrapped receiver id (for method overloading)  */
-export type Receiver = { __receiver: string }
 
 /*  MQTT topic making  */
 export type TopicMake = (name: string, peerId?: string) => string
@@ -62,6 +60,9 @@ export interface APIOptions {
     topicServiceRequestMatch:  TopicMatch
     topicServiceResponseMatch: TopicMatch
 }
+
+/*  type of a wrapped receiver id (for method overloading)  */
+export type Receiver = { __receiver: string }
 
 /*  Registration, Subscription and Observation result types  */
 export interface Registration {
@@ -87,31 +88,6 @@ export interface InfoService extends InfoBase {}
 export type WithInfo<F, I extends InfoBase> = F extends (...args: infer P) => infer R
     ? (...args: [ ...P, info: I ]) => R
     : never
-
-/*  marker types  */
-type Brand<T> = T & { readonly __brand: unique symbol }
-export type APIEndpoint = ((...args: any[]) => void) | ((...args: any[]) => any)
-export type Event<T extends APIEndpoint>   = Brand<T>
-export type Stream<T extends APIEndpoint>  = Brand<T>
-export type Service<T extends APIEndpoint> = Brand<T>
-
-/*  type utilities for generic API  */
-export type APISchema = Record<string, APIEndpoint>
-
-/*  extract event keys where type is branded as Event  */
-export type EventKeys<T> = string extends keyof T ? string : {
-    [ K in keyof T ]: T[K] extends Event<infer _F> ? K : never
-}[ keyof T ]
-
-/*  extract stream keys where type is branded as Stream  */
-export type StreamKeys<T> = string extends keyof T ? string : {
-    [ K in keyof T ]: T[K] extends Stream<infer _F> ? K : never
-}[ keyof T ]
-
-/*  extract service keys where type is branded as Service  */
-export type ServiceKeys<T> = string extends keyof T ? string : {
-    [ K in keyof T ]: T[K] extends Service<infer _F> ? K : never
-}[ keyof T ]
 
 /*  MQTTp Base class with shared infrastructure  */
 export class BaseTrait<T extends APISchema = APISchema> {

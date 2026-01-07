@@ -29,10 +29,10 @@ import { nanoid }                    from "nanoid"
 
 /*  internal requirements  */
 import { EventEmission }             from "./mqtt-plus-msg"
-import { BaseTrait }                 from "./mqtt-plus-base"
-import type { Receiver, APISchema,
-    EventKeys, WithInfo,
+import { APISchema, EventKeys }      from "./mqtt-plus-api"
+import type { Receiver, WithInfo,
     InfoEvent, Subscription }        from "./mqtt-plus-base"
+import { BaseTrait }                 from "./mqtt-plus-base"
 
 /*  Event Communication Trait  */
 export class EventTrait<T extends APISchema = APISchema> extends BaseTrait<T> {

@@ -22,12 +22,29 @@
 **  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-import type { APISchema } from "./mqtt-plus-api"
-import { ServiceTrait }   from "./mqtt-plus-service"
+/*  utility type for branding  */
+type Brand<T> = T & { readonly __brand: unique symbol }
 
-export *                  from "./mqtt-plus-api"
-export *                  from "./mqtt-plus-base"
+/*  API marker types  */
+export type APIEndpoint = ((...args: any[]) => void) | ((...args: any[]) => any)
+export type Event<T extends APIEndpoint>   = Brand<T>
+export type Stream<T extends APIEndpoint>  = Brand<T>
+export type Service<T extends APIEndpoint> = Brand<T>
 
-export default class MQTTp<T extends APISchema = APISchema>
-    extends ServiceTrait<T> {}
+/*  type utilities for generic API  */
+export type APISchema = Record<string, APIEndpoint>
 
+/*  extract event keys where type is branded as Event  */
+export type EventKeys<T> = string extends keyof T ? string : {
+    [ K in keyof T ]: T[K] extends Event<infer _F> ? K : never
+}[ keyof T ]
+
+/*  extract stream keys where type is branded as Stream  */
+export type StreamKeys<T> = string extends keyof T ? string : {
+    [ K in keyof T ]: T[K] extends Stream<infer _F> ? K : never
+}[ keyof T ]
+
+/*  extract service keys where type is branded as Service  */
+export type ServiceKeys<T> = string extends keyof T ? string : {
+    [ K in keyof T ]: T[K] extends Service<infer _F> ? K : never
+}[ keyof T ]

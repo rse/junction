@@ -32,10 +32,10 @@ import {
     ServiceRequest,
     ServiceResponseSuccess,
     ServiceResponseError }           from "./mqtt-plus-msg"
-import { StreamTrait }               from "./mqtt-plus-stream"
-import type { Receiver, APISchema,
-    ServiceKeys, WithInfo,
+import { APISchema, ServiceKeys }    from "./mqtt-plus-api"
+import type { Receiver, WithInfo,
     InfoService, Registration }      from "./mqtt-plus-base"
+import { StreamTrait }               from "./mqtt-plus-stream"
 
 /*  Service Communication Trait  */
 export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T> {
