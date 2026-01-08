@@ -29,7 +29,8 @@ import { nanoid }                    from "nanoid"
 
 /*  internal requirements  */
 import { EventEmission }             from "./mqtt-plus-msg"
-import { APISchema, EventKeys }      from "./mqtt-plus-api"
+import { APISchema,
+    APIEndpointEvent, EventKeys }    from "./mqtt-plus-api"
 import type { WithInfo, InfoEvent }  from "./mqtt-plus-info"
 import type { Receiver }             from "./mqtt-plus-receiver"
 import { BaseTrait }                 from "./mqtt-plus-base"
@@ -41,6 +42,9 @@ export interface Subscription {
 
 /*  Event Communication Trait  */
 export class EventTrait<T extends APISchema = APISchema> extends BaseTrait<T> {
+    /*  internal state  */
+    private subscriptions = new Map<string, WithInfo<APIEndpointEvent, InfoEvent>>()
+
     /*  subscribe to an RPC event  */
     async subscribe<K extends EventKeys<T> & string> (
         event:    K,
@@ -57,14 +61,14 @@ export class EventTrait<T extends APISchema = APISchema> extends BaseTrait<T> {
     ): Promise<Subscription> {
         /*  determine parameters  */
         let options:  Partial<IClientSubscribeOptions> = {}
-        let callback = args[0] as T[K]
+        let callback: WithInfo<T[K], InfoEvent> = args[0]
         if (args.length === 2 && typeof args[0] === "object") {
             options  = args[0]
             callback = args[1]
         }
 
         /*  sanity check situation  */
-        if (this.registry.has(event))
+        if (this.subscriptions.has(event))
             throw new Error(`subscribe: event "${event}" already subscribed`)
 
         /*  generate the corresponding MQTT topics for broadcast and direct use  */
@@ -82,15 +86,15 @@ export class EventTrait<T extends APISchema = APISchema> extends BaseTrait<T> {
         })
 
         /*  remember the subscription  */
-        this.registry.set(event, callback)
+        this.subscriptions.set(event, callback)
 
         /*  provide a subscription for subsequent unsubscribing  */
         const self = this
         const subscription: Subscription = {
             async unsubscribe (): Promise<void> {
-                if (!self.registry.has(event))
+                if (!self.subscriptions.has(event))
                     throw new Error(`unsubscribe: event "${event}" not subscribed`)
-                self.registry.delete(event)
+                self.subscriptions.delete(event)
                 return Promise.all([
                     self._unsubscribeTopic(topicB),
                     self._unsubscribeTopic(topicD)
@@ -148,7 +152,7 @@ export class EventTrait<T extends APISchema = APISchema> extends BaseTrait<T> {
         if (parsed instanceof EventEmission) {
             /*  just deliver event  */
             const name = parsed.event
-            const handler = this.registry.get(name)
+            const handler = this.subscriptions.get(name)
             const params = parsed.params ?? []
             const info: InfoEvent = { sender: parsed.sender ?? "", receiver: parsed.receiver }
             handler?.(...params, info)

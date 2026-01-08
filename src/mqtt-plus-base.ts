@@ -36,8 +36,7 @@ import { ReceiverTrait }                     from "./mqtt-plus-receiver"
 
 /*  MQTTp Base class with shared infrastructure  */
 export class BaseTrait<T extends APISchema = APISchema> extends ReceiverTrait<T> {
-    protected mqtt:     MqttClient
-    protected registry  = new Map<string, APIEndpoint>()
+    protected mqtt: MqttClient
 
     /*  construct API class  */
     constructor (

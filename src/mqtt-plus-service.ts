@@ -32,7 +32,8 @@ import {
     ServiceRequest,
     ServiceResponseSuccess,
     ServiceResponseError }            from "./mqtt-plus-msg"
-import { APISchema, ServiceKeys }     from "./mqtt-plus-api"
+import { APISchema,
+    APIEndpointService, ServiceKeys } from "./mqtt-plus-api"
 import type { WithInfo, InfoService } from "./mqtt-plus-info"
 import type { Receiver }              from "./mqtt-plus-receiver"
 import { StreamTrait }                from "./mqtt-plus-stream"
@@ -44,9 +45,13 @@ export interface Registration {
 
 /*  Service Communication Trait  */
 export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T> {
-    /*  service state  */
-    private requests      = new Map<string, { service: string, callback: (err: any, result: any) => void }>()
-    private subscriptions = new Map<string, number>()
+    /*  internal state  */
+    private registrations =
+        new Map<string, WithInfo<APIEndpointService, InfoService>>()
+    private responseCallback =
+        new Map<string, { service: string, callback: (err: any, result: any) => void }>()
+    private responseSubscriptions =
+        new Map<string, number>()
 
     /*  register an RPC service  */
     async register<K extends ServiceKeys<T> & string> (
@@ -71,7 +76,7 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
         }
 
         /*  sanity check situation  */
-        if (this.registry.has(service))
+        if (this.registrations.has(service))
             throw new Error(`register: service "${service}" already registered`)
 
         /*  generate the corresponding MQTT topics for broadcast and direct use  */
@@ -89,15 +94,15 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
         })
 
         /*  remember the registration  */
-        this.registry.set(service, callback)
+        this.registrations.set(service, callback)
 
         /*  provide a registration for subsequent unregistering  */
         const self = this
         const registration: Registration = {
             async unregister (): Promise<void> {
-                if (!self.registry.has(service))
+                if (!self.registrations.has(service))
                     throw new Error(`unregister: service "${service}" not registered`)
-                self.registry.delete(service)
+                self.registrations.delete(service)
                 return Promise.all([
                     self._unsubscribeTopic(topicB),
                     self._unsubscribeTopic(topicD)
@@ -144,12 +149,12 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
         /*  create promise for MQTT response handling  */
         const promise: Promise<Awaited<ReturnType<T[K]>>> = new Promise((resolve, reject) => {
             let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-                this.requests.delete(rid)
+                this.responseCallback.delete(rid)
                 this._responseUnsubscribe(service)
                 timer = null
                 reject(new Error("communication timeout"))
             }, this.options.timeout)
-            this.requests.set(rid, {
+            this.responseCallback.set(rid, {
                 service,
                 callback: (err: any, result: Awaited<ReturnType<T[K]>>) => {
                     if (timer !== null) {
@@ -172,9 +177,9 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
         /*  publish message to MQTT topic  */
         this.mqtt.publish(topic, message, { qos: 2, ...options }, (err?: Error) => {
             /*  handle request failure  */
-            const pendingRequest = this.requests.get(rid)
+            const pendingRequest = this.responseCallback.get(rid)
             if (err && pendingRequest !== undefined) {
-                this.requests.delete(rid)
+                this.responseCallback.delete(rid)
                 this._responseUnsubscribe(service)
                 pendingRequest.callback(err, undefined)
             }
@@ -189,14 +194,14 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
         const topic = this.options.topicServiceResponseMake(service, this.options.id)
 
         /*  subscribe to MQTT topic and remember subscription  */
-        if (!this.subscriptions.has(topic)) {
-            this.subscriptions.set(topic, 0)
+        if (!this.responseSubscriptions.has(topic)) {
+            this.responseSubscriptions.set(topic, 0)
             this.mqtt.subscribe(topic, options, (err: Error | null) => {
                 if (err)
                     this.mqtt.emit("error", err)
             })
         }
-        this.subscriptions.set(topic, this.subscriptions.get(topic)! + 1)
+        this.responseSubscriptions.set(topic, this.responseSubscriptions.get(topic)! + 1)
     }
 
     /*  unsubscribe from RPC response  */
@@ -205,13 +210,13 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
         const topic = this.options.topicServiceResponseMake(service, this.options.id)
 
         /*  short-circuit processing if (no longer) subscribed  */
-        if (!this.subscriptions.has(topic))
+        if (!this.responseSubscriptions.has(topic))
             return
 
         /*  unsubscribe from MQTT topic and forget subscription  */
-        this.subscriptions.set(topic, this.subscriptions.get(topic)! - 1)
-        if (this.subscriptions.get(topic) === 0) {
-            this.subscriptions.delete(topic)
+        this.responseSubscriptions.set(topic, this.responseSubscriptions.get(topic)! - 1)
+        if (this.responseSubscriptions.get(topic) === 0) {
+            this.responseSubscriptions.delete(topic)
             this.mqtt.unsubscribe(topic, (err?: Error) => {
                 if (err)
                     this.mqtt.emit("error", err)
@@ -226,7 +231,7 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
             /*  deliver service request and send response  */
             const rid = parsed.id
             const name = parsed.service
-            const handler = this.registry.get(name)
+            const handler = this.registrations.get(name)
             let response: Promise<any>
             if (handler !== undefined) {
                 /*  execute service handler  */
@@ -266,7 +271,7 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
         else if (parsed instanceof ServiceResponseSuccess || parsed instanceof ServiceResponseError) {
             /*  handle service response  */
             const rid = parsed.id
-            const request = this.requests.get(rid)
+            const request = this.responseCallback.get(rid)
             if (request !== undefined) {
                 /*  call callback function  */
                 if (parsed instanceof ServiceResponseSuccess)
@@ -275,7 +280,7 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
                     request.callback(new Error(parsed.error), undefined)
 
                 /*  unsubscribe from response  */
-                this.requests.delete(rid)
+                this.responseCallback.delete(rid)
                 this._responseUnsubscribe(request.service)
             }
         }

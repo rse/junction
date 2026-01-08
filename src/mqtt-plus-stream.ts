@@ -32,7 +32,8 @@ import { nanoid }                    from "nanoid"
 
 /*  internal requirements  */
 import { StreamChunk }               from "./mqtt-plus-msg"
-import { APISchema, StreamKeys }     from "./mqtt-plus-api"
+import { APISchema,
+    APIEndpointStream, StreamKeys }  from "./mqtt-plus-api"
 import type { WithInfo, InfoStream } from "./mqtt-plus-info"
 import type { Receiver }             from "./mqtt-plus-receiver"
 import { EventTrait }                from "./mqtt-plus-event"
@@ -44,6 +45,9 @@ export interface Attachment {
 
 /*  Stream Communication Trait  */
 export class StreamTrait<T extends APISchema> extends EventTrait<T> {
+    /*  internal state  */
+    private attachments = new Map<string, WithInfo<APIEndpointStream, InfoStream>>()
+
     /*  stream state  */
     private streams = new Map<string, stream.Readable>()
 
@@ -70,7 +74,7 @@ export class StreamTrait<T extends APISchema> extends EventTrait<T> {
         }
 
         /*  sanity check situation  */
-        if (this.registry.has(streamName))
+        if (this.attachments.has(streamName))
             throw new Error(`attach: stream "${streamName}" already attached`)
 
         /*  generate the corresponding MQTT topics for broadcast and direct use  */
@@ -88,15 +92,15 @@ export class StreamTrait<T extends APISchema> extends EventTrait<T> {
         })
 
         /*  remember the subscription  */
-        this.registry.set(streamName, callback)
+        this.attachments.set(streamName, callback)
 
         /*  provide an attachment for subsequent unattaching  */
         const self = this
         const attachment: Attachment = {
             async unattach (): Promise<void> {
-                if (!self.registry.has(streamName))
+                if (!self.attachments.has(streamName))
                     throw new Error(`unattach: stream "${streamName}" not attached`)
-                self.registry.delete(streamName)
+                self.attachments.delete(streamName)
                 return Promise.all([
                     self._unsubscribeTopic(topicB),
                     self._unsubscribeTopic(topicD)
@@ -202,7 +206,7 @@ export class StreamTrait<T extends APISchema> extends EventTrait<T> {
                 readable = new stream.Readable({ read (_size) {} })
                 this.streams.set(id, readable)
                 const info: InfoStream = { sender: parsed.sender ?? "", receiver: parsed.receiver, stream: readable }
-                const handler = this.registry.get(name)
+                const handler = this.attachments.get(name)
                 handler?.(...params, info)
             }
             if (chunk !== null && !Buffer.isBuffer(chunk))
