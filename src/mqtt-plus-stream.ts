@@ -67,7 +67,7 @@ export class StreamTrait<T extends APISchema> extends EventTrait<T> {
     ): Promise<Attachment> {
         /*  determine parameters  */
         let options:  Partial<IClientSubscribeOptions> = {}
-        let callback = args[0] as T[K]
+        let callback: WithInfo<T[K], InfoStream> = args[0]
         if (args.length === 2 && typeof args[0] === "object") {
             options  = args[0]
             callback = args[1]
