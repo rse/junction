@@ -57,7 +57,7 @@ export class EventTrait<T extends APISchema = APISchema> extends BaseTrait<T> {
     ): Promise<Subscription> {
         /*  determine parameters  */
         let options:  Partial<IClientSubscribeOptions> = {}
-        let callback: T[K] = args[0] as T[K]
+        let callback = args[0] as T[K]
         if (args.length === 2 && typeof args[0] === "object") {
             options  = args[0]
             callback = args[1]
