@@ -42,7 +42,6 @@ import type { Event,
 chai.config.includeStack = true
 chai.use(sinonChai)
 const { expect } = chai
-const expectSpy  = sinon.spy(expect)
 
 /*  example API  */
 type API = {
