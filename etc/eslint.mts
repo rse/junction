@@ -90,6 +90,6 @@ export default [
             "@typescript-eslint/no-this-alias":                   "off",
             "@typescript-eslint/unified-signatures":              "off",
             "@typescript-eslint/no-empty-object-type":            "off"
-        },
+        }
     }
 ]
