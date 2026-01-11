@@ -22,19 +22,43 @@
 **  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-/*  external dependencies  */
-import { expect } from "chai"
-import Mosquitto  from "mosquitto"
-import MQTT       from "mqtt"
+/*  external dependencies (test suite)  */
+import { describe, it } from "mocha"
+import * as chai        from "chai"
+import sinon            from "sinon"
+import sinonChai        from "sinon-chai"
+
+/*  external dependencies (application)  */
+import Mosquitto        from "mosquitto"
+import MQTT             from "mqtt"
 
 /*  internal dependencies  */
-import MQTTp      from "../dst-stage2/mqtt-plus.esm.js"
+import MQTTp            from "mqtt-plus"
+import type { Event,
+    Stream, Service,
+    Resource }          from "mqtt-plus"
+
+/*  setup test suite infrastructure  */
+chai.config.includeStack = true
+chai.use(sinonChai)
+const { expect } = chai
+const expectSpy  = sinon.spy(expect)
+
+/*  example API  */
+type API = {
+    "example/sample":        Event<(a1: string, a2: number) => void>
+    "example/upload":        Stream<(asset: string) => void>
+    "example/hello":         Service<(a1: string, a2: number) => string>
+    "example/store":         Resource<(filename: string) => Promise<Buffer>>
+    "example/store-invalid": Resource<(filename: string) => Promise<Buffer>>
+}
 
 /*  test suite  */
 describe("MQTT+ Library", function () {
     let mosquitto: Mosquitto
-    let mqtt:      MQTT
+    let mqtt:      MQTT.MqttClient
 
+    /*  actions before all test cases  */
     before(async function () {
         /*  start Mosquitto  */
         this.timeout(8000)
@@ -52,6 +76,7 @@ describe("MQTT+ Library", function () {
         })
     })
 
+    /*  test case: TypeScript API  */
     it("MQTT+ TypeScript API sanity check", async function () {
         const mqttp = new MQTTp(mqtt)
 
@@ -69,18 +94,103 @@ describe("MQTT+ Library", function () {
 
         expect(mqttp).to.respondTo("transfer")
         expect(mqttp).to.respondTo("call")
+
+        mqttp.destroy()
     })
 
+    /*  test case: Event Emission  */
     it("MQTT+ Event Emission", async function () {
+        /*  setup  */
         this.timeout(1000)
+        const spy = sinon.spy()
+
+        /*  subscribe to event  */
+        const mqttp = new MQTTp<API>(mqtt)
+        const subscription = await mqttp.subscribe("example/sample", (str: string, num: number) => {
+            spy("subscribe")
+        })
+
+        /*  emit event  */
+        mqttp.emit("example/sample", "world", 42)
+        await new Promise((resolve) => { setTimeout(resolve, 10) })
+        expect(spy.getCalls().map((call) => call.firstArg))
+            .to.be.deep.equal([ "subscribe" ])
+
+        /*  destroy service  */
+        await subscription.unsubscribe()
+        mqttp.destroy()
     })
 
-    it("MQTT+ Resource Transfer", async function () {
+    /*  test case: Stream Transfer  */
+    it("MQTT+ Stream Transfer", async function () {
+        /*  setup  */
         this.timeout(2000)
+        const spy = sinon.spy()
+
+        /*  attach to stream  */
+        const mqttp = new MQTTp<API>(mqtt)
+        const attachment = await mqttp.attach("example/upload", (asset: string) => {
+            spy("attach")
+        })
+
+        /*  transfer stream  */
+        //  FIXME: to be done
+
+        /*  destroy service  */
+        await attachment.unattach()
+        mqttp.destroy()
+    })
+
+    /*  test case: Service Call  */
+    it("MQTT+ Service Call", async function () {
+        /*  setup  */
+        this.timeout(1000)
+        const spy = sinon.spy()
+
+        /*  provide service  */
+        const mqttp = new MQTTp<API>(mqtt, { timeout: 1000 })
+        const registration = await mqttp.register("example/hello", (str: string, num: number) => {
+            spy("register")
+            if (str !== "world")
+                throw new Error("invalid service call")
+            expect(str).to.be.equal("world")
+            expect(num).to.be.equal(42)
+            return `${str}:${num}`
+        })
+
+        /*  call service (successfully)  */
+        await mqttp.call("example/hello", "world", 42).then(async (result) => {
+            spy("call-success")
+            expect(result).to.be.equal("world:42")
+        }).catch((err: Error) => {
+            spy("call-error")
+        })
+        expect(spy.getCalls().map((call) => call.firstArg))
+            .to.be.deep.equal([ "register", "call-success" ])
+        spy.resetHistory()
+
+        /*  call service (successfully)  */
+        await mqttp.call("example/hello", "bad-arg", 42).then(async (result) => {
+            spy("call-success")
+        }).catch((err: Error) => {
+            expect(err.message).to.be.equal("invalid service call")
+            spy("call-error")
+        })
+        expect(spy.getCalls().map((call) => call.firstArg))
+            .to.be.deep.equal([ "register", "call-error" ])
+
+        /*  destroy service  */
+        await registration.unregister()
+        mqttp.destroy()
+    })
+
+    /*  test case: Resource Transfer  */
+    it("MQTT+ Resource Transfer", async function () {
+        this.timeout(3000)
 
         /*  provide resource  */
-        const mqttp = new MQTTp(mqtt, { timeout: 1000 })
-        const p = await mqttp.provision("example/store", (filename: string) => {
+        const mqttp = new MQTTp<API>(mqtt, { timeout: 1000 })
+        const provisioning = await mqttp.provision("example/store", async (filename: string) => {
             if (filename === "foo")
                 return Buffer.from(`the ${filename} content`)
             else
@@ -97,12 +207,21 @@ describe("MQTT+ Library", function () {
         expect(result2).to.be.equal("invalid resource")
 
         /*  fetch non-existing resource (invalid resource name)  */
-        const result3 = await mqttp.fetch("example/not-existing", "foo").catch((err) => err.message)
+        const result3 = await mqttp.fetch("example/store-invalid", "foo").catch((err) => err.message)
         expect(result3).to.be.equal("communication timeout")
 
-        await p.unprovision()
+        await provisioning.unprovision()
+        mqttp.destroy()
     })
 
+    /*  actions after each test cases  */
+    let testsFailed = 0
+    afterEach(function () {
+        if (this.currentTest?.state === "failed")
+            testsFailed++
+    })
+
+    /*  actions after all test cases  */
     after(async function () {
         /*  disconnect with MQTT  */
         mqtt.end()
@@ -111,7 +230,10 @@ describe("MQTT+ Library", function () {
         this.timeout(4000)
         await mosquitto.stop()
         await new Promise((resolve) => { setTimeout(resolve, 1000) })
-        console.log(mosquitto.logs())
+
+        /*  in case of any failed tests, show the Mosquitto logs  */
+        if (testsFailed > 0)
+            console.log(mosquitto.logs())
     })
 })
 
