@@ -1,0 +1,30 @@
+{
+    "compilerOptions": {
+        "outDir":                  "../dst-stage1",
+        "target":                  "es2022",
+        "module":                  "ESNext",
+        "moduleResolution":        "Bundler",
+        "useDefineForClassFields": false,
+        "composite":               false,
+        "strict":                  true,
+        "strictFunctionTypes":     true,
+        "resolveJsonModule":       false,
+        "isolatedModules":         false,
+        "esModuleInterop":         false,
+        "lib":                     [ "es2022", "dom" ],
+        "skipLibCheck":            true,
+        "declaration":             true,
+        "noEmit":                  true,
+        "rootDir":                 "../tst",
+        "baseUrl":                 "..",
+        "paths": {
+            "mqtt-plus":           [ "dst-stage1/mqtt-plus.d.ts" ]
+        }
+    },
+    "include": [
+        "../tst/**/*.spec.ts"
+    ],
+    "exclude": [
+        "../node_modules"
+    ]
+}
