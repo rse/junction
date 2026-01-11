@@ -78,8 +78,8 @@ export class StreamTrait<T extends APISchema> extends EventTrait<T> {
             throw new Error(`attach: stream "${streamName}" already attached`)
 
         /*  generate the corresponding MQTT topics for broadcast and direct use  */
-        const topicB = this.options.topicStreamChunkMake(streamName)
-        const topicD = this.options.topicStreamChunkMake(streamName, this.options.id)
+        const topicB = this.options.topicMake(streamName, "stream-transfer-chunk")
+        const topicD = this.options.topicMake(streamName, "stream-transfer-chunk", this.options.id)
 
         /*  subscribe to MQTT topics  */
         await Promise.all([
@@ -147,7 +147,7 @@ export class StreamTrait<T extends APISchema> extends EventTrait<T> {
         const rid = nanoid()
 
         /*  generate corresponding MQTT topic  */
-        const topic = this.options.topicStreamChunkMake(streamName, receiver)
+        const topic = this.options.topicMake(streamName, "stream-transfer-chunk", receiver)
 
         /*  utility function for converting a chunk to a Buffer  */
         const chunkToBuffer = (chunk: any) => {
@@ -193,9 +193,12 @@ export class StreamTrait<T extends APISchema> extends EventTrait<T> {
     }
 
     /*  dispatch message (Stream pattern handling)  */
-    protected _dispatchMessage (parsed: any) {
-        super._dispatchMessage(parsed)
-        if (parsed instanceof StreamChunk) {
+    protected _dispatchMessage (topic: string, parsed: any) {
+        super._dispatchMessage(topic, parsed)
+        const topicMatch = this.options.topicMatch(topic)
+        if (topicMatch !== null
+            && topicMatch.operation === "stream-transfer-chunk"
+            && parsed instanceof StreamChunk) {
             /*  just handle stream chunk  */
             const id  = parsed.id
             let chunk = parsed.chunk

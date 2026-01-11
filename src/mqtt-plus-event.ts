@@ -72,8 +72,8 @@ export class EventTrait<T extends APISchema = APISchema> extends BaseTrait<T> {
             throw new Error(`subscribe: event "${event}" already subscribed`)
 
         /*  generate the corresponding MQTT topics for broadcast and direct use  */
-        const topicB = this.options.topicEventNoticeMake(event)
-        const topicD = this.options.topicEventNoticeMake(event, this.options.id)
+        const topicB = this.options.topicMake(event, "event-emission")
+        const topicD = this.options.topicMake(event, "event-emission", this.options.id)
 
         /*  subscribe to MQTT topics  */
         await Promise.all([
@@ -140,16 +140,19 @@ export class EventTrait<T extends APISchema = APISchema> extends BaseTrait<T> {
         const message = this.codec.encode(request)
 
         /*  generate corresponding MQTT topic  */
-        const topic = this.options.topicEventNoticeMake(event, receiver)
+        const topic = this.options.topicMake(event, "event-emission", receiver)
 
         /*  publish message to MQTT topic  */
         this.mqtt.publish(topic, message, { qos: 2, ...options })
     }
 
     /*  dispatch message (Event pattern handling)  */
-    protected _dispatchMessage (parsed: any) {
-        super._dispatchMessage(parsed)
-        if (parsed instanceof EventEmission) {
+    protected _dispatchMessage (topic: string, parsed: any) {
+        super._dispatchMessage(topic, parsed)
+        const topicMatch = this.options.topicMatch(topic)
+        if (topicMatch !== null
+            && topicMatch.operation === "event-emission"
+            && parsed instanceof EventEmission) {
             /*  just deliver event  */
             const name = parsed.event
             const handler = this.subscriptions.get(name)

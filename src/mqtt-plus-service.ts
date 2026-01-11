@@ -28,10 +28,8 @@ import { IClientPublishOptions,
 import { nanoid }                     from "nanoid"
 
 /*  internal requirements  */
-import {
-    ServiceRequest,
-    ServiceResponseSuccess,
-    ServiceResponseError }            from "./mqtt-plus-msg"
+import { ServiceRequest,
+    ServiceResponse }                 from "./mqtt-plus-msg"
 import { APISchema,
     APIEndpointService, ServiceKeys } from "./mqtt-plus-api"
 import type { WithInfo, InfoService } from "./mqtt-plus-info"
@@ -80,8 +78,8 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
             throw new Error(`register: service "${service}" already registered`)
 
         /*  generate the corresponding MQTT topics for broadcast and direct use  */
-        const topicB = this.options.topicServiceRequestMake(service)
-        const topicD = this.options.topicServiceRequestMake(service, this.options.id)
+        const topicB = this.options.topicMake(service, "service-call-request")
+        const topicD = this.options.topicMake(service, "service-call-request", this.options.id)
 
         /*  subscribe to MQTT topics  */
         await Promise.all([
@@ -172,7 +170,7 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
         const message = this.codec.encode(request)
 
         /*  generate corresponding MQTT topic  */
-        const topic = this.options.topicServiceRequestMake(service, receiver)
+        const topic = this.options.topicMake(service, "service-call-request", receiver)
 
         /*  publish message to MQTT topic  */
         this.mqtt.publish(topic, message, { qos: 2, ...options }, (err?: Error) => {
@@ -191,7 +189,7 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
     /*  subscribe to RPC response  */
     private _responseSubscribe (service: string, options: IClientSubscribeOptions = { qos: 2 }): void {
         /*  generate corresponding MQTT topic  */
-        const topic = this.options.topicServiceResponseMake(service, this.options.id)
+        const topic = this.options.topicMake(service, "service-call-response", this.options.id)
 
         /*  subscribe to MQTT topic and remember subscription  */
         if (!this.responseSubscriptions.has(topic)) {
@@ -207,7 +205,7 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
     /*  unsubscribe from RPC response  */
     private _responseUnsubscribe (service: string): void {
         /*  generate corresponding MQTT topic  */
-        const topic = this.options.topicServiceResponseMake(service, this.options.id)
+        const topic = this.options.topicMake(service, "service-call-response", this.options.id)
 
         /*  short-circuit processing if (no longer) subscribed  */
         if (!this.responseSubscriptions.has(topic))
@@ -225,9 +223,12 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
     }
 
     /*  dispatch message (Service pattern handling)  */
-    protected _dispatchMessage (parsed: any) {
-        super._dispatchMessage(parsed)
-        if (parsed instanceof ServiceRequest) {
+    protected _dispatchMessage (topic: string, parsed: any) {
+        super._dispatchMessage(topic, parsed)
+        const topicMatch = this.options.topicMatch(topic)
+        if (topicMatch !== null
+            && topicMatch.operation === "service-call-request"
+            && parsed instanceof ServiceRequest) {
             /*  deliver service request and send response  */
             const rid = parsed.id
             const name = parsed.service
@@ -243,7 +244,7 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
                 response = Promise.reject(new Error(`method not found: ${name}`))
             response.then((result: any) => {
                 /*  create success response  */
-                return this.msg.makeServiceResponseSuccess(rid, result, this.options.id, parsed.sender)
+                return this.msg.makeServiceResponse(rid, result, undefined, this.options.id, parsed.sender)
             }, (result: any) => {
                 /*  determine error message and build error response  */
                 let errorMessage: string
@@ -255,28 +256,31 @@ export class ServiceTrait<T extends APISchema = APISchema> extends StreamTrait<T
                     errorMessage = result.message
                 else
                     errorMessage = String(result)
-                return this.msg.makeServiceResponseError(rid, errorMessage, this.options.id, parsed.sender)
+                return this.msg.makeServiceResponse(rid, undefined, errorMessage, this.options.id, parsed.sender)
             }).then((rpcResponse) => {
                 /*  send response message  */
                 const senderPeerId = parsed.sender
                 if (senderPeerId === undefined)
                     throw new Error("invalid request: missing sender")
                 const encoded = this.codec.encode(rpcResponse)
-                const topic = this.options.topicServiceResponseMake(name, senderPeerId)
+                const topic = this.options.topicMake(name, "service-call-response", senderPeerId)
                 this.mqtt.publish(topic, encoded, { qos: 2 })
             }).catch((err: Error) => {
                 this.mqtt.emit("error", err)
             })
         }
-        else if (parsed instanceof ServiceResponseSuccess || parsed instanceof ServiceResponseError) {
+        else if (topicMatch !== null
+            && topicMatch.operation === "service-call-response"
+            && topicMatch.peerId === this.options.id
+            && parsed instanceof ServiceResponse) {
             /*  handle service response  */
             const rid = parsed.id
             const request = this.responseCallback.get(rid)
             if (request !== undefined) {
                 /*  call callback function  */
-                if (parsed instanceof ServiceResponseSuccess)
+                if (parsed.result !== undefined && parsed.error === undefined)
                     request.callback(undefined, parsed.result)
-                else if (parsed instanceof ServiceResponseError)
+                else if (parsed.result === undefined && parsed.error !== undefined)
                     request.callback(new Error(parsed.error), undefined)
 
                 /*  unsubscribe from response  */

@@ -36,7 +36,7 @@ import { ResourceRequest,
 import { APISchema, ResourceKeys,
     APIEndpointResource }              from "./mqtt-plus-api"
 import type { WithInfo,
-    InfoResource, InfoStream }         from "./mqtt-plus-info"
+    InfoResource }                     from "./mqtt-plus-info"
 import type { Receiver }               from "./mqtt-plus-receiver"
 import { ServiceTrait }                from "./mqtt-plus-service"
 
@@ -56,7 +56,7 @@ export class ResourceTrait<T extends APISchema = APISchema> extends ServiceTrait
             callback: (error: Error | undefined, chunk: Buffer | null | undefined) => void
         }>()
 
-    /*  register an RPC service  */
+    /*  provision an RPC resource  */
     async provision<K extends ResourceKeys<T> & string> (
         resource: K,
         callback: WithInfo<T[K], InfoResource>
@@ -83,8 +83,8 @@ export class ResourceTrait<T extends APISchema = APISchema> extends ServiceTrait
             throw new Error(`provision: resource "${resource}" already provisioned`)
 
         /*  generate the corresponding MQTT topics for broadcast and direct use  */
-        const topicB = this.options.topicResourceTransferMake(resource)
-        const topicD = this.options.topicResourceTransferMake(resource, this.options.id)
+        const topicB = this.options.topicMake(resource, "resource-transfer-request")
+        const topicD = this.options.topicMake(resource, "resource-transfer-request", this.options.id)
 
         /*  subscribe to MQTT topics  */
         await Promise.all([
@@ -147,7 +147,7 @@ export class ResourceTrait<T extends APISchema = APISchema> extends ServiceTrait
         const requestId = nanoid()
 
         /*  subscribe to stream response topic  */
-        const responseTopic = this.options.topicResourceTransferMake(resource, this.options.id)
+        const responseTopic = this.options.topicMake(resource, "resource-transfer-response", this.options.id)
         await this._subscribeTopic(responseTopic, { qos: 2 })
 
         /*  create promise for collecting stream chunks  */
@@ -196,7 +196,7 @@ export class ResourceTrait<T extends APISchema = APISchema> extends ServiceTrait
         const message = this.codec.encode(request)
 
         /*  generate corresponding MQTT topic  */
-        const topic = this.options.topicResourceTransferMake(resource, receiver)
+        const topic = this.options.topicMake(resource, "resource-transfer-request", receiver)
 
         /*  publish message to MQTT topic  */
         this.mqtt.publish(topic, message, { qos: 2, ...options })
@@ -205,9 +205,12 @@ export class ResourceTrait<T extends APISchema = APISchema> extends ServiceTrait
     }
 
     /*  dispatch message (Resource pattern handling)  */
-    protected _dispatchMessage (parsed: any) {
-        super._dispatchMessage(parsed)
-        if (parsed instanceof ResourceRequest) {
+    protected _dispatchMessage (topic: string, parsed: any) {
+        super._dispatchMessage(topic, parsed)
+        const topicMatch = this.options.topicMatch(topic)
+        if (topicMatch !== null
+            && topicMatch.operation === "resource-transfer-request"
+            && parsed instanceof ResourceRequest) {
             /*  handle resource request  */
             const name = parsed.resource
             const handler = this.provisionings.get(name)
@@ -226,7 +229,7 @@ export class ResourceTrait<T extends APISchema = APISchema> extends ServiceTrait
                             result = Buffer.from(result)
 
                         /*  generate corresponding MQTT topic  */
-                        const topic = this.options.topicResourceTransferMake(resource, receiver)
+                        const topic = this.options.topicMake(resource, "resource-transfer-response", sender)
 
                         /*  split Buffer into chunks and send them back  */
                         const chunkSize = this.options.chunkSize
@@ -235,7 +238,7 @@ export class ResourceTrait<T extends APISchema = APISchema> extends ServiceTrait
                             const chunk = result.subarray(i, i + size)
 
                             /*  generate encoded message  */
-                            const request = this.msg.makeResourceResponse(requestId, chunk, undefined, this.options.id, receiver)
+                            const request = this.msg.makeResourceResponse(requestId, chunk, undefined, this.options.id, sender)
                             const message = this.codec.encode(request)
 
                             /*  publish message to MQTT topic  */
@@ -243,22 +246,24 @@ export class ResourceTrait<T extends APISchema = APISchema> extends ServiceTrait
                         }
 
                         /*  send "null" chunk to signal end of stream  */
-                        const request = this.msg.makeResourceResponse(requestId, null, undefined, this.options.id, receiver)
+                        const request = this.msg.makeResourceResponse(requestId, null, undefined, this.options.id, sender)
                         const message = this.codec.encode(request)
                         this.mqtt.publish(topic, message, { qos: 2 })
                     })
                     .catch((err: Error) => {
                         /*  generate corresponding MQTT topic  */
-                        const topic = this.options.topicResourceTransferMake(resource, receiver)
+                        const topic = this.options.topicMake(resource, "resource-transfer-response", sender)
 
                         /*  send error  */
-                        const request = this.msg.makeResourceResponse(requestId, null, err.message, this.options.id, receiver)
+                        const request = this.msg.makeResourceResponse(requestId, null, err.message, this.options.id, sender)
                         const message = this.codec.encode(request)
                         this.mqtt.publish(topic, message, { qos: 2 })
                     })
             }
         }
-        else if (parsed instanceof ResourceResponse) {
+        else if (topicMatch !== null
+            && topicMatch.operation === "resource-transfer-response"
+            && parsed instanceof ResourceResponse) {
             /*  handle resource response  */
             const requestId = parsed.id
             const error     = parsed.error

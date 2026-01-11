@@ -28,12 +28,10 @@ import { nanoid }      from "nanoid"
 /*  internal requirements  */
 import { APISchema }   from "./mqtt-plus-api"
 
-/*  MQTT topic making  */
-export type TopicMake = (name: string, peerId?: string) => string
-
 /*  MQTT topic matching  */
+export type TopicMake     = (name: string, operation: string, peerId?: string) => string
 export type TopicMatch    = (topic: string) => TopicMatching | null
-export type TopicMatching = { name: string, peerId?: string }
+export type TopicMatching = { name: string, operation: string, peerId?: string }
 
 /*  API option type  */
 export interface APIOptions {
@@ -41,16 +39,8 @@ export interface APIOptions {
     codec:                      "cbor" | "json"
     timeout:                    number
     chunkSize:                  number
-    topicEventNoticeMake:       TopicMake
-    topicStreamChunkMake:       TopicMake
-    topicServiceRequestMake:    TopicMake
-    topicServiceResponseMake:   TopicMake
-    topicResourceTransferMake:  TopicMake
-    topicEventNoticeMatch:      TopicMatch
-    topicStreamChunkMatch:      TopicMatch
-    topicServiceRequestMatch:   TopicMatch
-    topicServiceResponseMatch:  TopicMatch
-    topicResourceTransferMatch: TopicMatch
+    topicMake:                  TopicMake
+    topicMatch:                 TopicMatch
 }
 
 /*  Options trait  */
@@ -67,50 +57,12 @@ export class OptionsTrait<T extends APISchema = APISchema> {
             codec:     "cbor",
             timeout:   10 * 1000,
             chunkSize: 16 * 1024,
-            topicEventNoticeMake: (name, peerId) => {
-                return peerId
-                    ? `${name}/event-notice/${peerId}`
-                    : `${name}/event-notice`
+            topicMake: (name, protocol, peerId) => {
+                return `${name}/${protocol}` + (peerId ? `/${peerId}` : "/any")
             },
-            topicStreamChunkMake: (name, peerId) => {
-                return peerId
-                    ? `${name}/stream-chunk/${peerId}`
-                    : `${name}/stream-chunk`
-            },
-            topicServiceRequestMake: (name, peerId) => {
-                return peerId
-                    ? `${name}/service-request/${peerId}`
-                    : `${name}/service-request`
-            },
-            topicServiceResponseMake: (name, peerId) => {
-                return peerId
-                    ? `${name}/service-response/${peerId}`
-                    : `${name}/service-response`
-            },
-            topicResourceTransferMake: (name, peerId) => {
-                return peerId
-                    ? `${name}/resource-transfer/${peerId}`
-                    : `${name}/resource-transfer`
-            },
-            topicEventNoticeMatch: (topic) => {
-                const m = topic.match(/^(.+?)\/event-notice(?:\/(.+))?$/)
-                return m ? { name: m[1], peerId: m[2] } : null
-            },
-            topicStreamChunkMatch: (topic) => {
-                const m = topic.match(/^(.+?)\/stream-chunk(?:\/(.+))?$/)
-                return m ? { name: m[1], peerId: m[2] } : null
-            },
-            topicServiceRequestMatch: (topic) => {
-                const m = topic.match(/^(.+?)\/service-request(?:\/(.+))?$/)
-                return m ? { name: m[1], peerId: m[2] } : null
-            },
-            topicServiceResponseMatch: (topic) => {
-                const m = topic.match(/^(.+?)\/service-response\/(.+)$/)
-                return m ? { name: m[1], peerId: m[2] } : null
-            },
-            topicResourceTransferMatch: (topic) => {
-                const m = topic.match(/^(.+?)\/resource-transfer(?:\/(.+))?$/)
-                return m ? { name: m[1], peerId: m[2] } : null
+            topicMatch: (topic) => {
+                const m = topic.match(/^(.+)\/([^/]+)\/([^/]+)$/)
+                return m ? { name: m[1], operation: m[2], peerId: m[3] === "any" ? undefined : m[3] } : null
             },
             ...options
         }

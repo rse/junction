@@ -24,17 +24,17 @@
 
 /*  external requirements  */
 import { MqttClient, IClientPublishOptions,
-    IClientSubscribeOptions }                from "mqtt"
+    IClientSubscribeOptions,
+    IPublishPacket }                         from "mqtt"
 
 /*  internal requirements  */
-import { APISchema, APIEndpoint }            from "./mqtt-plus-api"
+import { APISchema }                         from "./mqtt-plus-api"
 import { EventEmission, StreamChunk,
     ServiceRequest,
-    ServiceResponseSuccess,
-    ServiceResponseError,
+    ServiceResponse,
     ResourceRequest,
     ResourceResponse }                       from "./mqtt-plus-msg"
-import { APIOptions, TopicMatching }         from "./mqtt-plus-options"
+import { APIOptions }                        from "./mqtt-plus-options"
 import { ReceiverTrait }                     from "./mqtt-plus-receiver"
 
 /*  MQTTp Base class with shared infrastructure  */
@@ -52,9 +52,14 @@ export class BaseTrait<T extends APISchema = APISchema> extends ReceiverTrait<T>
         this.mqtt = mqtt
 
         /*  hook into the MQTT message processing  */
-        this.mqtt.on("message", (topic, message) => {
-            this._onMessage(topic, message)
+        this.mqtt.on("message", (topic, message, packet) => {
+            this._onMessage(topic, message, packet)
         })
+    }
+
+    /*  destroy API class  */
+    destroy () {
+        this.mqtt.removeAllListeners()
     }
 
     /*  subscribe to an MQTT topic (Promise-based)  */
@@ -113,36 +118,14 @@ export class BaseTrait<T extends APISchema = APISchema> extends ReceiverTrait<T>
     }
 
     /*  handle incoming MQTT message  */
-    private _onMessage (topic: string, message: Buffer): void {
-        /*  ensure we handle only valid messages  */
-        let eventNoticeMatch:      TopicMatching | null = null
-        let streamChunkMatch:      TopicMatching | null = null
-        let serviceRequestMatch:   TopicMatching | null = null
-        let serviceResponseMatch:  TopicMatching | null = null
-        let resourceTransferMatch: TopicMatching | null = null
-        if (   (eventNoticeMatch      = this.options.topicEventNoticeMatch(topic))      === null
-            && (streamChunkMatch      = this.options.topicStreamChunkMatch(topic))      === null
-            && (serviceRequestMatch   = this.options.topicServiceRequestMatch(topic))   === null
-            && (serviceResponseMatch  = this.options.topicServiceResponseMatch(topic))  === null
-            && (resourceTransferMatch = this.options.topicResourceTransferMatch(topic)) === null)
-            return
-
-        /*  ensure we really handle only messages for us  */
-        const peerId = eventNoticeMatch?.peerId ??
-            streamChunkMatch?.peerId ??
-            serviceRequestMatch?.peerId ??
-            serviceResponseMatch?.peerId ??
-            resourceTransferMatch?.peerId
-        if (peerId !== undefined && peerId !== this.options.id)
-            return
-
+    private _onMessage (topic: string, message: Buffer, packet: IPublishPacket): void {
         /*  try to parse payload as payload  */
-        let parsed: EventEmission |
-            StreamChunk |
-            ServiceRequest |
-            ServiceResponseSuccess |
-            ServiceResponseError |
-            ResourceRequest |
+        let parsed:
+            EventEmission     |
+            StreamChunk       |
+            ServiceRequest    |
+            ServiceResponse   |
+            ResourceRequest   |
             ResourceResponse
         try {
             let input: Buffer | string = message
@@ -160,10 +143,13 @@ export class BaseTrait<T extends APISchema = APISchema> extends ReceiverTrait<T>
         }
 
         /*  dispatch to trait handlers  */
-        this._dispatchMessage(parsed)
+        this._dispatchMessage(topic, parsed)
     }
 
     /*  dispatch parsed message to appropriate handler
         (base implementation, to be overridden in super-traits)  */
-    protected _dispatchMessage (_parsed: any): void {}
+    protected _dispatchMessage (
+        _topic:  string,
+        _parsed: any
+    ): void {}
 }
