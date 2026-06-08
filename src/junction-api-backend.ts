@@ -101,7 +101,9 @@ export default class JunctionBackend {
         const url = new URL(this.mqttUrl)
         const username = url.username; url.username = ""
         const password = url.password; url.password = ""
-        let   pathname = url.pathname; url.pathname = ""
+        const pathname = url.pathname; url.pathname = ""
+        const topicPrefix = (url.searchParams.get("topic") ?? "").replace(/^\//, "").replace(/\/$/, "")
+        url.search = ""
         const mqtt = MQTT.connect(url.href, {
             path: pathname,
             ...(username !== undefined && username !== "" ? { username } : {}),
@@ -161,15 +163,16 @@ export default class JunctionBackend {
         })
 
         /*  enabling MQTT+ facility  */
-        this.logger.info("starting MQTT+ service")
-        pathname = pathname.replace(/^\//, "").replace(/\/$/, "")
-        const pathnameRe = pathname.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-        const topicRe = new RegExp(`^${pathnameRe}\\/(.+)\\/([^/]+)\\/([^/]+)$`)
+        this.logger.info("enabling MQTT+ service")
+        const prefix    = topicPrefix === "" ? "" : `${topicPrefix}/`
+        const prefixRe  = topicPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        const prefixReP = topicPrefix === "" ? "" : `${prefixRe}\\/`
+        const topicRe   = new RegExp(`^${prefixReP}(.+)\\/([^/]+)\\/([^/]+)$`)
         const mqttp = new MQTTp<API>(mqtt, {
             timeout: this.options.timeout,
             codec:   this.options.codec,
             topicMake: (name, protocol, peerId) => {
-                return `${pathname}/${name}/${protocol}/${peerId ?? "any"}`
+                return `${prefix}${name}/${protocol}/${peerId ?? "any"}`
             },
             topicMatch: (topic) => {
                 const m = topic.match(topicRe)
@@ -191,6 +194,12 @@ export default class JunctionBackend {
 
         /*  watch filesystem  */
         this.logger.info(`starting filesystem watcher: "${this.directory}"`)
+        const baseDir = path.normalize(path.resolve(this.directory))
+        const relPath = (file: string) => {
+            const abs = path.normalize(path.resolve(file))
+            const rel = path.relative(baseDir, abs)
+            return rel.split(path.sep).join("/")
+        }
         const excludePatterns = this.options.exclude
         this.watcher = chokidar.watch(this.directory, {
             awaitWriteFinish: {
@@ -216,7 +225,8 @@ export default class JunctionBackend {
                 excludePatterns.map((p) => `"${p}"`).join(", "))
 
         /*  trigger frontend on added files  */
-        this.watcher.on("add", async (path: string, stats?: fs.Stats) => {
+        this.watcher.on("add", async (file: string, stats?: fs.Stats) => {
+            const path = relPath(file)
             this.logger.info(`filesystem change: path: "${path}", event: "add"`)
             await this.mqttp?.call("frontend/refresh", path).catch((err) => {
                 this.logger.warn(`MQTT call failed for "frontend/refresh": path: ${path}: ${err}`)
@@ -224,7 +234,8 @@ export default class JunctionBackend {
         })
 
         /*  trigger frontend on modified files  */
-        this.watcher.on("change", async (path: string, stats?: fs.Stats) => {
+        this.watcher.on("change", async (file: string, stats?: fs.Stats) => {
+            const path = relPath(file)
             this.logger.info(`filesystem change: path: "${path}", event: "change"`)
             await this.mqttp?.call("frontend/refresh", path).catch((err) => {
                 this.logger.warn(`MQTT call failed for "frontend/refresh": path: ${path}: ${err}`)
@@ -232,7 +243,8 @@ export default class JunctionBackend {
         })
 
         /*  trigger frontend on removed files  */
-        this.watcher.on("unlink", async (path: string) => {
+        this.watcher.on("unlink", async (file: string) => {
+            const path = relPath(file)
             this.logger.info(`filesystem change: path: "${path}", event: "unlink"`)
             await this.mqttp?.call("frontend/delete", path).catch((err) => {
                 this.logger.warn(`MQTT call failed for "frontend/delete": path: ${path}: ${err}`)
@@ -253,8 +265,7 @@ export default class JunctionBackend {
         /*  configure MQTT service for frontend  */
         mqttp.source("backend/fetch", async (filePath, info) => {
             /*  determine filesystem segments  */
-            const baseDir  = path.normalize(path.resolve(this.directory))
-            let   filename = path.normalize(path.resolve(baseDir, filePath))
+            let filename = path.normalize(path.resolve(baseDir, filePath))
 
             /*  ensure request is inside base directory  */
             if (!filename.startsWith(baseDir + path.sep) && filename !== baseDir) {

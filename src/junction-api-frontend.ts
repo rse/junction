@@ -209,7 +209,9 @@ export default class JunctionFrontend {
         url = new URL(this.mqttUrl)
         const username = url.username; url.username = ""
         const password = url.password; url.password = ""
-        let   pathname = url.pathname; url.pathname = ""
+        const pathname = url.pathname; url.pathname = ""
+        const topicPrefix = (url.searchParams.get("topic") ?? "").replace(/^\//, "").replace(/\/$/, "")
+        url.search = ""
         const mqtt = MQTT.connect(url.href, {
             path: pathname,
             ...(username !== undefined && username !== "" ? { username } : {}),
@@ -268,14 +270,15 @@ export default class JunctionFrontend {
 
         /*  enabling MQTT+ facility  */
         this.logger.info("enabling MQTT+ facility")
-        pathname = pathname.replace(/^\//, "").replace(/\/$/, "")
-        const pathnameRe = pathname.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-        const topicRe = new RegExp(`^${pathnameRe}\\/(.+)\\/([^/]+)\\/([^/]+)$`)
+        const prefix    = topicPrefix === "" ? "" : `${topicPrefix}/`
+        const prefixRe  = topicPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        const prefixReP = topicPrefix === "" ? "" : `${prefixRe}\\/`
+        const topicRe   = new RegExp(`^${prefixReP}(.+)\\/([^/]+)\\/([^/]+)$`)
         const mqttp = new MQTTp<API>(mqtt, {
             timeout: this.options.timeout,
             codec:   this.options.codec,
             topicMake: (name, protocol, peerId) => {
-                return `${pathname}/${name}/${protocol}/${peerId ?? "any"}`
+                return `${prefix}${name}/${protocol}/${peerId ?? "any"}`
             },
             topicMatch: (topic) => {
                 const m = topic.match(topicRe)
