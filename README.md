@@ -19,7 +19,11 @@ into three independently runnable processes &mdash; a *frontend* (the HTTP
 ingress), a *backend* (the filesystem egress), and an optional embedded
 *broker* — which all communicate over [MQTT](http://mqtt.org/) using the
 typed higher-level communication patterns of
-[MQTT+](https://npmjs.com/mqtt-plus).
+[MQTT+](https://npmjs.com/mqtt-plus). For full deployments there is also
+an optional *orchestrator* that generates all configuration files and
+spawns and supervises an entire [HAProxy](https://www.haproxy.org/) +
+[Mosquitto](https://mosquitto.org/) + frontend topology from a single
+YAML configuration.
 
 ```txt
 HTTP client -→ [frontend] -→MQTT-→ [broker] -→MQTT-→ [backend] -→ filesystem
@@ -53,10 +57,10 @@ help of the NPM Command-Line Interface (CLI):
 $ npm install @rse/junction
 ```
 
-This provides a single command-line tool `junction` with the three
-sub-commands `junction frontend`, `junction backend`, and `junction
-broker`, as well as a library entry point exporting the three API
-classes for embedding into own applications.
+This provides a single command-line tool `junction` with the four
+sub-commands `junction frontend`, `junction backend`, `junction broker`,
+and `junction orchestrator`, as well as a library entry point exporting
+the four API classes for embedding into own applications.
 
 Usage
 -----
@@ -64,22 +68,24 @@ Usage
 ### Command-Line Interface (CLI)
 
 A typical local development loop consists of three processes, all
-pointing at the same [MQTT](http://mqtt.org/) URL. The URL's pathname
-acts as the [MQTT+](https://npmjs.com/mqtt-plus) topic namespace prefix,
-its `username`/`password` as the [MQTT](http://mqtt.org/) credentials.
+pointing at the same [MQTT](http://mqtt.org/) URL. In the connect URL the
+`username`/`password` act as the [MQTT](http://mqtt.org/) credentials,
+the pathname is the connection path (the WebSocket request path for
+`ws`/`wss` connects), and an optional `?topic=<prefix>` search parameter
+selects the [MQTT+](https://npmjs.com/mqtt-plus) topic namespace prefix.
 
 Start the embedded [Mosquitto](https://mosquitto.org/) broker:
 
 ```shell
 $ junction broker \
-    -l mqtt://user:pass@127.0.0.1:1883/example
+    -l mqtt://user:pass@127.0.0.1:1883
 ```
 
 Start a backend exposing a directory:
 
 ```shell
 $ junction backend \
-    -c mqtt://user:pass@127.0.0.1:1883/example \
+    -c "mqtt://user:pass@127.0.0.1:1883/?topic=example" \
     -d ./htdocs \
     -e "**/*.bak"
 ```
@@ -88,57 +94,109 @@ Start a frontend exposing an HTTP listener:
 
 ```shell
 $ junction frontend \
-    -c mqtt://user:pass@127.0.0.1:1883/example \
+    -c "mqtt://user:pass@127.0.0.1:1883/?topic=example" \
     -l http://0.0.0.0:8080
 ```
+
+Both `frontend` and `backend` additionally accept `-L/--log-level`
+(`error`|`warn`|`info`|`debug`), `-T/--timeout` (MQTT+ request timeout in
+milliseconds), and `-C/--codec` (`json`|`cbor`).
+
+### Orchestrator
+
+For a complete, production-style topology, the `orchestrator` sub-command
+reads a single YAML configuration, generates all
+[HAProxy](https://www.haproxy.org/) and
+[Mosquitto](https://mosquitto.org/) configuration files (plus, for
+self-signed TLS, a CA and server certificate), and then spawns and
+supervises the whole router + reverse-proxy + broker + frontend topology:
+
+```shell
+$ junction orchestrator \
+    -c ./junction.yaml \
+    -d ./run \
+    -p
+```
+
+It accepts `-c/--config <file>` (mandatory), `-e/--env-file <file>` (an
+additional `.env` file overlaid onto the current directory's `.env`),
+`-d/--directory <dir>` (target run directory; an auto-removed temporary
+directory is used when omitted), `-p/--prune` (clear the run directory
+first), `-n/--dry-run` (generate config files only; do not spawn
+processes), and `-L/--log-level`. Scalar configuration leaves can be
+overridden via `JUNCTION_*` environment variables (e.g.
+`JUNCTION_PROXY_INSTANCES=4` overrides `proxy.instances`). See
+`etc/junction-local.yaml` and `etc/junction-server.yaml` for example
+configurations.
 
 ### Application Programming Interface (API)
 
 **Junction** can also be embedded as a library. The package exports
-the three API classes `JunctionBroker`, `JunctionBackend`, and
-`JunctionFrontend`, all of which follow the same `start()`/`stop()`
-lifecycle pattern:
+the four API classes `JunctionBroker`, `JunctionBackend`,
+`JunctionFrontend`, and `JunctionOrchestrator`, all of which follow the
+same `start()`/`stop()` lifecycle pattern. The connection-related
+arguments are passed positionally, followed by a final `options` object:
 
 ```ts
 import {
     JunctionBroker,
     JunctionBackend,
-    JunctionFrontend
+    JunctionFrontend,
+    JunctionOrchestrator
 } from "@rse/junction"
 ```
 
 ```ts
-/*  broker (optional)  */
-const broker = new JunctionBroker({
-    listen:   "mqtt://user:pass@127.0.0.1:1883/example",
-    logLevel: "info"
-})
+/*  broker (optional): new JunctionBroker(listenUrl, options)  */
+const broker = new JunctionBroker(
+    "mqtt://user:pass@127.0.0.1:1883",
+    { logLevel: "info" }
+)
 await broker.start()
 ```
 
 ```ts
-/*  backend (filesystem → MQTT+)  */
-const backend = new JunctionBackend({
-    connect:   "mqtt://user:pass@127.0.0.1:1883/example",
-    directory: "./htdocs",
-    exclude:   [ "**/*.bak" ],
-    codec:     "cbor",
-    timeout:   5000,
-    logLevel:  "info"
-})
+/*  backend (filesystem → MQTT+): new JunctionBackend(directory, connectUrl, options)  */
+const backend = new JunctionBackend(
+    "./htdocs",
+    "mqtt://user:pass@127.0.0.1:1883/?topic=example",
+    {
+        exclude:  [ "**/*.bak" ],
+        codec:    "cbor",
+        timeout:  5000,
+        logLevel: "info"
+    }
+)
 await backend.start()
 ```
 
 ```ts
-/*  frontend (HTTP → MQTT+)  */
-const frontend = new JunctionFrontend({
-    connect:  "mqtt://user:pass@127.0.0.1:1883/example",
-    listen:   "http://0.0.0.0:8080",
-    codec:    "cbor",
-    timeout:  5000,
-    logLevel: "info"
-})
+/*  frontend (HTTP → MQTT+): new JunctionFrontend(listenUrl, connectUrl, options)  */
+const frontend = new JunctionFrontend(
+    "http://0.0.0.0:8080",
+    "mqtt://user:pass@127.0.0.1:1883/?topic=example",
+    {
+        codec:    "cbor",
+        timeout:  5000,
+        logLevel: "info"
+    }
+)
 await frontend.start()
+```
+
+```ts
+/*  orchestrator (full topology): new JunctionOrchestrator(configFile, options)  */
+const orchestrator = new JunctionOrchestrator(
+    "./junction.yaml",
+    {
+        envFile:   undefined,
+        directory: "./run",
+        prune:     true,
+        dryRun:    false,
+        logLevel:  "info"
+    }
+)
+await orchestrator.start()
 ```
 
 License
