@@ -610,6 +610,37 @@ export default class JunctionOrchestrator {
             children.push({ name: "router", process: child })
             this.logger.info(`pass 2: spawned: ${tag}: pid=${child.pid}`)
         }
+
+        /*  NFTables router ruleset (single one-shot apply; only for the "nftables" router type):
+            "nft -f" loads the generated ruleset into the kernel and exits immediately, so unlike
+            HAProxy it is not a long-lived child to supervise -- it is awaited to completion here.
+            Loading into the host's "nat" table requires CAP_NET_ADMIN and host networking, hence
+            this is intended for a privileged, host-network container or a bare-metal deployment.  */
+        if (config.router.type === "nftables") {
+            const file = path.join(runDir, "router-nftables.conf")
+            const tag  = "router"
+
+            /*  warn early if lacking the privilege required to load a host ruleset:
+                "nft -f" needs CAP_NET_ADMIN (effectively root), and for the DNAT rules
+                to affect host traffic the process must share the host network namespace
+                (e.g. a container run with "--network=host --cap-add=NET_ADMIN")  */
+            if (process.getuid !== undefined && process.getuid() !== 0)
+                this.logger.warn(`${tag}: not running as root -- "nft -f" likely lacks ` +
+                    "CAP_NET_ADMIN to load the NFTables ruleset (run as root, and under " +
+                    "host networking with NET_ADMIN if containerized)")
+
+            this.logger.info(`pass 2: applying: ${tag}: "nft -f ${file}"`)
+            try {
+                const { stdout, stderr } = await execa("nft", [ "-f", file ], { cwd: runDir })
+                for (const line of `${stdout}\n${stderr}`.split(/\r?\n/))
+                    if (line !== "")
+                        this.logger.info(`${tag}: ${line}`)
+                this.logger.info(`pass 2: applied:  ${tag}: NFTables ruleset loaded`)
+            }
+            catch (err: any) {
+                throw new Error(`pass 2: failed to apply NFTables ruleset via "nft -f ${file}": ${err.message}`)
+            }
+        }
         await sleep(1000)
 
         /*  Junction frontend instances  */

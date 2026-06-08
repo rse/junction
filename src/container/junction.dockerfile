@@ -17,7 +17,7 @@ RUN         apt-get update && \
             apt-get upgrade -y
 
 #   extend Debian
-RUN         apt-get install -y --no-install-recommends bash curl gosu && \
+RUN         apt-get install -y --no-install-recommends bash curl gosu nftables && \
             apt-get install -y --no-install-recommends libc6 libssl3 libc-ares2 libsqlite3-0 liblua5.4
 
 #   establish application area and user/group

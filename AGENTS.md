@@ -18,6 +18,9 @@ script `npm start` delegates to it. Run targets as `npm start <target>`:
 - `npm start orchestrator` — `node dst/junction-cli.js orchestrator …` against `etc/junction-local.yaml`
 - `npm start package` / `publish` — Docker image build/push (host-gated to `en4.*`)
 - `npm start docker-run` / `docker-exec` / `docker-backend` — local Docker helpers
+  (the `docker-run` helper targets the `haproxy` router config; running the
+  `nftables` router type in a container additionally requires
+  `--network=host --cap-add=NET_ADMIN`)
 
 There is no test suite. A typical local dev loop is one of:
 
@@ -76,7 +79,15 @@ HTTP client → [frontend] →(MQTT)→ broker →(MQTT)→ [backend] → filesy
   bundle via `selfsigned`. Pass 2 spawns `mosquitto`, `haproxy`, and
   `junction frontend` child processes (skipped under `--dry-run`),
   capturing their stdout/stderr into pino and terminating them on
-  shutdown. Constructor: `new JunctionOrchestrator(configFile, options)`.
+  shutdown. For the `nftables` router type, pass 2 additionally applies
+  the generated `router-nftables.conf` once via `nft -f` (a one-shot
+  kernel load, not a supervised child) — this needs the orchestrator to
+  run as **root** with `CAP_NET_ADMIN`, and (when containerized) under
+  host networking, e.g. `docker run --network=host --cap-add=NET_ADMIN`,
+  so the DNAT rules affect host traffic; a non-root run is warned about
+  and will likely fail. The `haproxy` router type, by contrast, is a
+  plain userspace child needing no special privileges.
+  Constructor: `new JunctionOrchestrator(configFile, options)`.
   Config is loaded via `@dotenvx/dotenvx` (`.env`, optionally overlaid
   with `--env-file`), parsed with `js-yaml`, schema-validated with
   `valibot`, and supports `JUNCTION_*` environment-variable overrides
