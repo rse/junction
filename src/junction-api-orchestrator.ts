@@ -562,12 +562,16 @@ export default class JunctionOrchestrator {
         const children: Child[] = []
         this.children = children
 
+        /*  helper function for delayed operation  */
+        const sleep = (ms: number) =>
+            new Promise((resolve) => setTimeout(resolve, ms))
+
         /*  Mosquitto brokers  */
         const brokers = (config.broker ?? {}) as Record<string, any>
         for (const [ name, bcfg ] of Object.entries(brokers)) {
             const roles = [
-                { role: "frontend" as const, count: bcfg.instances.frontend },
-                { role: "backend"  as const, count: bcfg.instances.backend  }
+                { role: "backend"  as const, count: bcfg.instances.backend  },
+                { role: "frontend" as const, count: bcfg.instances.frontend }
             ]
             for (const r of roles) {
                 for (let i = 0; i < r.count; i++) {
@@ -577,9 +581,11 @@ export default class JunctionOrchestrator {
                     this.capture(child, tag)
                     children.push({ name: `broker-${name}-${r.role}-${String(i).padStart(2, "0")}`, process: child })
                     this.logger.info(`pass 2: spawned: ${tag}: pid=${child.pid}`)
+                    await sleep(1000)
                 }
             }
         }
+        await sleep(1000)
 
         /*  HAProxy instances  */
         const proxyCount = config.proxy?.instances ?? 0
@@ -592,6 +598,7 @@ export default class JunctionOrchestrator {
             children.push({ name: `proxy-${String(i).padStart(2, "0")}`, process: child })
             this.logger.info(`pass 2: spawned: ${tag}: pid=${child.pid}`)
         }
+        await sleep(1000)
 
         /*  HAProxy router instance (single; only for the "haproxy" router type)  */
         if (config.router.type === "haproxy") {
@@ -603,6 +610,7 @@ export default class JunctionOrchestrator {
             children.push({ name: "router", process: child })
             this.logger.info(`pass 2: spawned: ${tag}: pid=${child.pid}`)
         }
+        await sleep(1000)
 
         /*  Junction frontend instances  */
         const selfCli  = fileURLToPath(new URL("./junction-cli.js", import.meta.url))
