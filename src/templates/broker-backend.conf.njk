@@ -9,15 +9,21 @@ user                    app
 #   logging
 log_dest                stderr
 log_type                error
+{%- if logLevel == "warn" or logLevel == "info" or logLevel == "debug" %}
 log_type                warning
-#log_type                notice
-#log_type                information
-#log_type                subscribe
-#log_type                unsubscribe
-#log_type                websockets
-#log_type               debug
+{%- endif %}
+{%- if logLevel == "info" or logLevel == "debug" %}
+log_type                notice
+log_type                information
+log_type                subscribe
+log_type                unsubscribe
+log_type                websockets
 websockets_log_level    2
-#connection_messages     true
+connection_messages     false
+{%- endif %}
+{%- if logLevel == "debug" %}
+log_type                debug
+{%- endif %}
 log_timestamp           true
 log_timestamp_format    [%Y-%m-%d %H:%M:%S]
 
