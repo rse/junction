@@ -16,6 +16,10 @@ global
 defaults
     log             global
     option          dontlognull
+    option          contstats
+{%- if logLevel == "debug" %}
+    option          tcplog
+{%- endif %}
     retries         3
     option          redispatch
     maxconn         2000
@@ -23,6 +27,7 @@ defaults
     timeout client  60s
     timeout server  60s
     timeout tunnel  60s
+
 
 listen stats
     bind            127.0.0.1:6644
@@ -38,7 +43,6 @@ listen stats
 frontend fe
     bind            {{ router.service.addr }}:{{ router.service.port }} name tcp
     mode            tcp
-    option          tcplog
 
     maxconn         10000
     backlog         10000
@@ -57,7 +61,6 @@ backend be_proxy
 frontend fe_acme
     bind            {{ router.acme.addr }}:{{ router.acme.port }} name acme
     mode            tcp
-    option          tcplog
 
     maxconn         10000
     backlog         10000
