@@ -5,6 +5,15 @@ ChangeLog
 0.9.2 (2026-06-08)
 ------------------
 
+- FEATURE: add option -e/--env-file to load a particular .env file
+- IMPROVEMENT: improve MQTT/broker/HAProxy logging and connection observability
+- IMPROVEMENT: distinguish URL path (WebSocket connect) from MQTT topic (communication)
+- IMPROVEMENT: give MQTT client an explicit client id (reused by MQTT+ too)
+- IMPROVEMENT: improve startup ordering by avoiding retries
+- BUGFIX: fix cache hits/misses for index files ("/" vs "index.html")
+- BUGFIX: fix MQTT bridge transfer and replace broken broker ACLs with MQTT+ ones
+- UPDATE: update NPM dependencies and add nanoid
+- CLEANUP: remove debugging aid and keep debugging scripts in stx config
 
 0.9.1 (2026-06-08)
 ------------------
