@@ -32,6 +32,7 @@ import JunctionOrchestrator  from "./junction-api-orchestrator.js"
 type LogLevel = "error" | "warn" | "info" | "debug"
 type Opts = {
     config:    string
+    envFile:   string | undefined
     directory: string | undefined
     prune:     boolean
     dryRun:    boolean
@@ -45,6 +46,8 @@ export function configureCommand (program: Command): Command {
         .addOption(new Option("-c, --config <file>",
             "YAML configuration file")
             .makeOptionMandatory(true))
+        .addOption(new Option("-e, --env-file <file>",
+            "path to additional \".env\" file, overlaid onto \".env\" in current directory"))
         .addOption(new Option("-d, --directory <dir>",
             "target directory for generated config files (default: auto temp dir)"))
         .addOption(new Option("-p, --prune",
@@ -59,6 +62,7 @@ export function configureCommand (program: Command): Command {
         .action(async (opts: Opts) => {
             /*  establish service  */
             const service = new JunctionOrchestrator(opts.config, {
+                envFile:   opts.envFile,
                 directory: opts.directory,
                 prune:     opts.prune,
                 dryRun:    opts.dryRun,

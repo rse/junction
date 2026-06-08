@@ -44,6 +44,7 @@ import selfsigned               from "selfsigned"
 /*  service options  */
 type LogLevel = "debug" | "info" | "warn" | "error"
 type Options = {
+    envFile:   string | undefined
     directory: string | undefined
     prune:     boolean
     dryRun:    boolean
@@ -173,8 +174,14 @@ export default class JunctionOrchestrator {
         })
         this.logger.info("starting Junction ORCHESTRATOR service")
 
-        /*  load optional ".env" file (silent on success, no error if absent)  */
-        dotenvx.config({ quiet: true, ignore: [ "MISSING_ENV_FILE" ] })
+        /*  load optional ".env" file (silent on success, no error if absent);
+            with an extra "--env-file", the default cwd ".env" is loaded first
+            and the supplied file is overlaid on top (its values win on conflict)  */
+        if (this.options.envFile !== undefined)
+            this.logger.info(`config: loading env file: "${this.options.envFile}" (overlaid onto ".env")`)
+        dotenvx.config({ quiet: true, ignore: [ "MISSING_ENV_FILE" ],
+            ...(this.options.envFile !== undefined
+                ? { path: [ ".env", this.options.envFile ], overload: true } : {}) })
 
         /*  load and parse YAML configuration  */
         this.logger.info(`config: loading: "${this.configFile}"`)
