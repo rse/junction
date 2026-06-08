@@ -1,0 +1,45 @@
+##
+##  broker-{{ instance.name }}-backend-{{ instance.index | pad(2, '0') }}.conf: Mosquitto service configuration
+##  ATTENTION: THIS FILE IS GENERATED -- DO NOT EDIT!
+##
+
+#   global settings
+user                    app
+
+#   logging
+log_dest                stderr
+log_type                error
+log_type                warning
+#log_type                notice
+#log_type                information
+#log_type                subscribe
+#log_type                unsubscribe
+#log_type                websockets
+#log_type               debug
+websockets_log_level    2
+#connection_messages     true
+log_timestamp           true
+log_timestamp_format    [%Y-%m-%d %H:%M:%S]
+
+#   security
+acl_file                ./broker-{{ instance.name }}-backend-acl.txt
+password_file           ./broker-{{ instance.name }}-backend-pwd.txt
+allow_anonymous         false
+
+#   persistence
+autosave_on_changes     false
+persistence             false
+
+#   internals
+sys_interval            1
+websockets_headers_size 2048
+
+#   listener (MQTT over TCP)
+listener                {{ (broker[instance.name].bridge.port | int) + (instance.index | int) }} {{ broker[instance.name].bridge.addr }}
+max_connections         -1
+protocol                mqtt
+
+#  listener (ws: MQTT over WebSockets)
+listener                {{ (broker[instance.name].backend.port | int) + (instance.index | int) }} {{ broker[instance.name].backend.addr }}
+max_connections         -1
+protocol                websockets

@@ -1,0 +1,79 @@
+##
+##  Junction -- HTTP/REST over MQTT Gateway
+##  Copyright (c) 2025-2026 Dr. Ralf S. Engelschall <rse@engelschall.com>
+##
+##  Permission is hereby granted, free of charge, to any person obtaining
+##  a copy of this software and associated documentation files (the
+##  "Software"), to deal in the Software without restriction, including
+##  without limitation the rights to use, copy, modify, merge, publish,
+##  distribute, sublicense, and/or sell copies of the Software, and to
+##  permit persons to whom the Software is furnished to do so, subject to
+##  the following conditions:
+##
+##  The above copyright notice and this permission notice shall be included
+##  in all copies or substantial portions of the Software.
+##
+##  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+##  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+##  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+##  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+##  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+##  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+##  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+##
+
+run:
+    dir: ./run
+    uid: inherit
+    gid: inherit
+
+#   load-balancer (Linux NFTables or HAProxy)
+router:
+    type:    haproxy
+    service: { addr: 0.0.0.0, port: 443 }
+
+#   reverse proxy (HAProxy)
+proxy:
+    instances:  2
+    frontend:   { addr: 127.0.0.1, port: 10000 }
+    tls:
+        type:  self-signed
+        email: none
+        addr:  127.0.0.1
+        fqdn:
+            - localhost
+    backend:
+        - { host-match: "^(localhost|127\\.0\\.0\\.1):.*$", path-match: "^/pr/api/client/$", path-subst: "",    forward: "broker:pr:frontend"  }
+        # - { host-match: "^(localhost|127\\.0\\.0\\.1):.*$", path-match: "^/qa/api/client/$", path-subst: "",    forward: "broker:qa:frontend"  }
+        # - { host-match: "^(localhost|127\\.0\\.0\\.1):.*$", path-match: "^/dv/api/client/$", path-subst: "",    forward: "broker:dv:frontend"  }
+        - { host-match: "^(localhost|127\\.0\\.0\\.1):.*$", path-match: "^/pr/api/server/$", path-subst: "",    forward: "broker:pr:backend"  }
+        # - { host-match: "^(localhost|127\\.0\\.0\\.1):.*$", path-match: "^/qa/api/server/$", path-subst: "",    forward: "broker:qa:backend"  }
+        # - { host-match: "^(localhost|127\\.0\\.0\\.1):.*$", path-match: "^/dv/api/server/$", path-subst: "",    forward: "broker:dv:backend"  }
+        - { host-match: "^(localhost|127\\.0\\.0\\.1):.*$", path-match: "^/pr/(.*)",         path-subst: "/$1", forward: "gateway:pr" }
+        # - { host-match: "^(localhost|127\\.0\\.0\\.1):.*$", path-match: "^/qa/(.*)",         path-subst: "/$1", forward: "gateway:qa" }
+        # - { host-match: "^(localhost|127\\.0\\.0\\.1):.*$", path-match: "^/dv/(.*)",         path-subst: "/$1", forward: "gateway:dv" }
+
+#   gateway (Junction frontend)
+gateway:
+    pr: { instances: 1, addr: 127.0.0.1, port: 10100 }
+    # qa: { instances: 1, addr: 127.0.0.1, port: 10140 }
+    # dv: { instances: 1, addr: 127.0.0.1, port: 10180 }
+
+#   broker (Mosquitto)
+broker:
+    pr:
+        instances: { frontend: 2, backend: 1 }
+        frontend:  { addr: 127.0.0.1, port: 10200 }
+        bridge:    { addr: 127.0.0.1, port: 10240, user: bridge,  pass: "" }
+        backend:   { addr: 127.0.0.1, port: 10280, user: service, pass: "" }
+    # qa:
+    #     instances: { frontend: 2, backend: 1 }
+    #     frontend:  { addr: 127.0.0.1, port: 10300 }
+    #     bridge:    { addr: 127.0.0.1, port: 10340, user: bridge,  pass: "" }
+    #     backend:   { addr: 127.0.0.1, port: 10380, user: service, pass: "" }
+    # dv:
+    #     instances: { frontend: 2, backend: 1 }
+    #     frontend:  { addr: 127.0.0.1, port: 10400 }
+    #     bridge:    { addr: 127.0.0.1, port: 10440, user: bridge,  pass: "" }
+    #     backend:   { addr: 127.0.0.1, port: 10480, user: service, pass: "" }
+

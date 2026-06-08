@@ -1,0 +1,11 @@
+##
+##  broker-{{ instance.name }}-frontend-acl.txt: Mosquitto Access Control List
+##  ATTENTION: THIS FILE IS GENERATED -- DO NOT EDIT!
+##
+
+#   shared/anonymous ACL list
+topic   read       $SYS/#
+pattern write      $SYS/broker/connection/%c/state
+pattern read       peer/%c
+topic   read       event/#
+topic   readwrite  service/#

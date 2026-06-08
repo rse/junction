@@ -1,0 +1,41 @@
+##
+##  router-nftables.conf -- Router Linux NFTables Configuration
+##  ATTENTION: THIS FILE IS GENERATED -- DO NOT EDIT!
+##
+
+{%- if router.type == 'nftables' %}
+
+table ip nat {
+    chain input {
+        type nat hook input priority 0
+        policy accept
+    }
+    chain prerouting {
+        type nat hook prerouting priority -100
+        policy accept
+
+        ip daddr {{ router.service.addr }} tcp dport {{ router.service.port }} dnat to numgen inc mod {{ proxy.instances }} map {
+            {%- for i in range(0, proxy.instances) %}
+            {{ i | pad(2) }} : {{ proxy.frontend.addr }} . {{ (proxy.frontend.port | int) + (i | int) }}{% if not loop.last %},{% endif %}
+            {%- endfor %}
+        }
+        ip daddr {{ router.service.addr }} udp dport {{ router.service.port }} dnat to numgen inc mod {{ proxy.instances }} map {
+            {%- for i in range(0, proxy.instances) %}
+            {{ i | pad(2) }} : {{ proxy.frontend.addr }} . {{ (proxy.frontend.port | int) + (i | int) }}{% if not loop.last %},{% endif %}
+            {%- endfor %}
+        }
+        {%- if router.acme %}
+        ip daddr {{ router.acme.addr }} tcp dport {{ router.acme.port }} dnat to {{ proxy.tls.addr }}:{{ proxy.tls.port }}
+        {%- endif %}
+    }
+    chain postrouting {
+        type nat hook postrouting priority 100
+        policy accept
+    }
+    chain output {
+        type nat hook output priority -100
+        policy accept
+    }
+}
+{%- endif %}
+

@@ -1,0 +1,68 @@
+##
+##  broker-{{ instance.name }}-frontend-{{ instance.index | pad(2, '0') }}.conf: Mosquitto service configuration
+##  ATTENTION: THIS FILE IS GENERATED -- DO NOT EDIT!
+##
+
+#   global settings
+user                    app
+
+#   logging
+log_dest                stderr
+log_type                error
+{%- if logLevel == "warn" or logLevel == "info" or logLevel == "debug" %}
+log_type                warning
+{%- endif %}
+{%- if logLevel == "info" or logLevel == "debug" %}
+log_type                notice
+log_type                information
+log_type                subscribe
+log_type                unsubscribe
+log_type                websockets
+websockets_log_level    2
+connection_messages     false
+{%- endif %}
+{%- if logLevel == "debug" %}
+log_type                debug
+{%- endif %}
+log_timestamp           true
+log_timestamp_format    [%Y-%m-%d %H:%M:%S]
+
+#   security
+acl_file                ./broker-{{ instance.name }}-frontend-acl.txt
+password_file           ./broker-{{ instance.name }}-frontend-pwd.txt
+allow_anonymous         true
+
+#   persistence
+autosave_on_changes     false
+persistence             false
+
+#   internals
+sys_interval            1
+websockets_headers_size 2048
+
+#  listener (ws: MQTT over WebSockets)
+listener                {{ (broker[instance.name].frontend.port | int) + (instance.index | int) }} {{ broker[instance.name].frontend.addr }}
+max_connections         -1
+protocol                websockets
+
+{% for i in range(0, broker[instance.name].instances.backend) %}
+#   bridging to backend #{{ i | pad(2, '0') }}
+connection              broker-{{ instance.name }}-backend-{{ i | pad(2, '0') }}
+local_clientid          broker-{{ instance.name }}-frontend-{{ instance.index | pad(2, '0') }}
+remote_clientid         broker-{{ instance.name }}-frontend-{{ instance.index | pad(2, '0') }}
+address                 {{ broker[instance.name].bridge.addr }}:{{ (broker[instance.name].bridge.port | int) + (i | int) }}
+remote_username         {{ broker[instance.name].bridge.user }}
+remote_password         {{ broker[instance.name].bridge.pass }}
+topic                   peer/#    in  2 "" ""
+topic                   event/#   in  2 "" ""
+topic                   service/# out 2 "" ""
+cleansession            true
+notifications           true
+bridge_max_packet_size  0
+bridge_protocol_version mqttv50
+start_type              automatic
+try_private             true
+restart_timeout         5 20
+
+{% endfor %}
+

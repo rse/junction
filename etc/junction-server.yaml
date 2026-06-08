@@ -1,0 +1,83 @@
+##
+##  Junction -- HTTP/REST over MQTT Gateway
+##  Copyright (c) 2025-2026 Dr. Ralf S. Engelschall <rse@engelschall.com>
+##
+##  Permission is hereby granted, free of charge, to any person obtaining
+##  a copy of this software and associated documentation files (the
+##  "Software"), to deal in the Software without restriction, including
+##  without limitation the rights to use, copy, modify, merge, publish,
+##  distribute, sublicense, and/or sell copies of the Software, and to
+##  permit persons to whom the Software is furnished to do so, subject to
+##  the following conditions:
+##
+##  The above copyright notice and this permission notice shall be included
+##  in all copies or substantial portions of the Software.
+##
+##  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+##  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+##  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+##  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+##  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+##  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+##  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+##
+
+run:
+    dir: /broadcast/run
+    uid: 2000
+    gid: 2000
+
+#   load-balancer (Linux NFTables or HAProxy)
+router:
+    type:    nftables
+    service: { addr: 5.9.145.42, port: 443 }
+    acme:    { addr: 5.9.145.42, port: 80 }
+
+#   reverse proxy (HAProxy)
+proxy:
+    instances:  16
+    frontend:   { addr: 5.9.145.42, port: 10000 }
+    tls:
+        type:  lets-encrypt
+        email: ralf.engelschall@msg.group
+        addr:  5.9.145.42
+        port:  9999
+        fqdn:
+            -        msg-broadcast.com
+            -    api.msg-broadcast.com
+            -     qa.msg-broadcast.com
+            - api.qa.msg-broadcast.com
+            -     dv.msg-broadcast.com
+            - api.dv.msg-broadcast.com
+    backend:
+        - { host-match: "^(?:api\\.pr\\.)?msg-broadcast\\.com$", path-match: "^.*",    path-subst: "",   forward: "broker/pr" }
+        - { host-match: "^api\\.qa\\.msg-broadcast\\.com$",      path-match: "^.*",    path-subst: "",   forward: "broker/qa" }
+        - { host-match: "^api\\.dv\\.msg-broadcast\\.com$",      path-match: "^.*",    path-subst: "",   forward: "broker/dv" }
+        - { host-match: "^msg-broadcast\\.com$",                 path-match: "^(.*)$", path-subst: "$1", forward: "gateway/pr" }
+        - { host-match: "^qa\\.msg-broadcast\\.com$",            path-match: "^(.*)$", path-subst: "$1", forward: "gateway/qa" }
+        - { host-match: "^dv\\.msg-broadcast\\.com$",            path-match: "^(.*)$", path-subst: "$1", forward: "gateway/dv" }
+
+#   gateway (Junction frontend)
+gateway:
+    pr: { instances: 8, addr: 127.0.0.1, port: 10100 }
+    qa: { instances: 4, addr: 127.0.0.1, port: 10140 }
+    dv: { instances: 1, addr: 127.0.0.1, port: 10180 }
+
+#   broker (Mosquitto)
+broker:
+    pr:
+        instances: { frontend: 16, backend: 4 }
+        frontend:  { addr: 127.0.0.1, port: 10200 }
+        bridge:    { addr: 127.0.0.1, port: 10240, user: bridge,  pass: "" }
+        backend:   { addr: 127.0.0.1, port: 10280, user: service, pass: "" }
+    qa:
+        instances: { frontend: 4, backend: 2 }
+        frontend:  { addr: 127.0.0.1, port: 10300 }
+        bridge:    { addr: 127.0.0.1, port: 10340, user: bridge,  pass: "" }
+        backend:   { addr: 127.0.0.1, port: 10380, user: service, pass: "" }
+    dv:
+        instances: { frontend: 1, backend: 1 }
+        frontend:  { addr: 127.0.0.1, port: 10400 }
+        bridge:    { addr: 127.0.0.1, port: 10440, user: bridge,  pass: "" }
+        backend:   { addr: 127.0.0.1, port: 10480, user: service, pass: "" }
+

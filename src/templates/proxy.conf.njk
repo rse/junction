@@ -1,0 +1,158 @@
+##
+##  proxy-{{ instance.index | pad(2, '0') }}.conf:  HAProxy Configuration
+##  ATTENTION: THIS FILE IS GENERATED -- DO NOT EDIT!
+##
+
+global
+    log             stderr daemon debug emerg
+    pidfile         ./proxy-{{ instance.index | pad(2, '0') }}.pid
+    stats socket    unix@./proxy-{{ instance.index | pad(2, '0') }}.sock mode 600 level admin
+    stats timeout   2m
+    user            app
+    group           app
+    maxconn         4096
+    nbthread        16
+
+defaults
+    log             global
+    option          dontlognull
+    option          forwardfor
+    option          contstats
+    retries         3
+    option          redispatch
+    maxconn         2000
+    timeout connect 5s
+    timeout client  60s
+    timeout server  60s
+    timeout tunnel  60s
+
+{%- if logLevel == "debug" %}
+traces
+    trace           h1     sink stderr level user verbosity complete start now
+    trace           h2     sink stderr level user verbosity complete start now
+    # trace           check  sink stderr level user verbosity complete start now
+{%- endif %}
+
+listen stats
+    bind            127.0.0.1:6644
+    mode            http
+    maxconn         10
+    no log
+    acl             network_allowed src 127.0.0.0/8
+    tcp-request     connection reject if !network_allowed
+    http-request    use-service prometheus-exporter if { path /metrics }
+    stats enable
+    stats uri       /
+
+{%- if proxy.tls.type == "lets-encrypt" %}
+
+acme letsencrypt
+    directory       https://acme-v02.api.letsencrypt.org/directory
+    challenge       HTTP-01
+    account-key     ./proxy-acme.key
+    contact         {{ proxy.tls.email }}
+
+crt-store
+    crt-base        ./proxy-cert.d
+    load crt        "{{ proxy.tls.fqdn[0] }}.pem" acme "letsencrypt"
+
+{%- endif %}
+
+frontend fe
+{%- if proxy.tls.type == "lets-encrypt" %}
+    bind            {{ proxy.tls.addr }}:{{ proxy.tls.port }} name acme
+    bind            {{ proxy.frontend.addr }}:{{ (proxy.frontend.port | int) + (instance.index | int) }} name http ssl crt ./proxy-cert.d
+{%- else %}
+    bind            {{ proxy.frontend.addr }}:{{ (proxy.frontend.port | int) + (instance.index | int) }} name http ssl crt ./proxy-sv.pem
+{%- endif %}
+    mode            http
+    option          httplog
+
+    maxconn         10000
+    backlog         10000
+
+    capture         request header origin len 128
+    http-response   set-header Access-Control-Allow-Origin      %[capture.req.hdr(0)]             if { capture.req.hdr(0) -m found }
+    http-response   set-header Access-Control-Allow-Methods     GET,\ HEAD,\ OPTIONS,\ POST,\ PUT if { capture.req.hdr(0) -m found }
+    http-response   set-header Access-Control-Allow-Credentials true                              if { capture.req.hdr(0) -m found }
+
+{%- if proxy.tls.type == "lets-encrypt" %}
+    acl             is_acme path_beg /.well-known/acme-challenge/
+    http-request    return status 200 content-type text/plain lf-string "%[acme.challenge]" if is_acme
+    redirect        scheme https code 301 if !{ ssl_fc } !is_acme
+{%- else %}
+    redirect        scheme https code 301 if !{ ssl_fc }
+{%- endif %}
+
+{%- for entry in proxy.backend %}
+{%- set class = entry.forward.split(":")[0] %}
+{%- set type  = entry.forward.split(":")[1] %}
+{%- set role  = entry.forward.split(":")[2] %}
+{%- if class == "broker" %}
+{%- set side = "serverside" if role == "backend" else "clientside" %}
+{%- set tag  = class + "_" + type + "_" + role %}
+
+    acl             acl_is_{{ tag }}_sni  ssl_fc_sni -i -m reg {{ entry["host-match"] | safe }}
+    acl             acl_is_{{ tag }}_hdr  hdr(host)  -i -m reg {{ entry["host-match"] | safe }}
+    acl             acl_is_{{ tag }}_pth  path          -m reg {{ entry["path-match"] | safe }}
+    use_backend     {{ side }}_broker_{{ type }}_api_mqtt  if acl_is_{{ tag }}_pth acl_is_{{ tag }}_hdr || acl_is_{{ tag }}_pth acl_is_{{ tag }}_sni
+{%- else %}
+{%- set tag = class + "_" + type %}
+
+    acl             acl_is_{{ tag }}_sni  ssl_fc_sni -i -m reg {{ entry["host-match"] | safe }}
+    acl             acl_is_{{ tag }}_hdr  hdr(host)  -i -m reg {{ entry["host-match"] | safe }}
+    acl             acl_is_{{ tag }}_pth  path          -m reg {{ entry["path-match"] | safe }}
+    use_backend     clientside_gateway_{{ type }}_api_http if acl_is_{{ tag }}_pth acl_is_{{ tag }}_hdr || acl_is_{{ tag }}_pth acl_is_{{ tag }}_sni
+{%- endif %}
+
+{%- endfor %}
+
+{%- set default = "" %}
+{%- for entry in proxy.backend %}
+{%- if entry.forward.split(":")[0] == "gateway" and default == "" %}
+{%- set default = entry.forward.split(":")[1] %}
+{%- endif %}
+{%- endfor %}
+
+    default_backend clientside_gateway_{{ default }}_api_http
+
+{%- for type, spec in broker %}
+
+backend serverside_broker_{{ type }}_api_mqtt
+    mode            http
+    balance         roundrobin
+    http-request    set-path /
+    {%- for i in range(0, spec.instances.backend) %}
+    server          broker-be-{{ ((i | int) + 1) | pad(2, '0') }} {{ spec.backend.addr }}:{{ (spec.backend.port | int) + (i | int) }} maxconn 10000 check inter 2000 rise 2 fall 5
+    {%- endfor %}
+
+backend clientside_broker_{{ type }}_api_mqtt
+    mode            http
+    balance         roundrobin
+    http-request    set-path /
+    {%- for i in range(0, spec.instances.frontend) %}
+    server          broker-fe-{{ ((i | int) + 1) | pad(2, '0') }} {{ spec.frontend.addr }}:{{ (spec.frontend.port | int) + (i | int) }} maxconn 10000 check inter 2000 rise 2 fall 5
+    {%- endfor %}
+
+{%- endfor %}
+
+{%- for type, spec in gateway %}
+{%- set match = "" %}
+{%- set subst = "" %}
+{%- for entry in proxy.backend %}
+{%- if entry.forward == "gateway:" + type and match == "" %}
+{%- set match = entry["path-match"] %}
+{%- set subst = entry["path-subst"] | replace("$", "\\") %}
+{%- endif %}
+{%- endfor %}
+
+backend clientside_gateway_{{ type }}_api_http
+    mode            http
+    balance         roundrobin
+    http-request    replace-path {{ match | safe }} {{ subst | safe }}
+    {%- for i in range(0, spec.instances) %}
+    server          gateway-{{ type }}-{{ ((i | int) + 1) | pad(2, '0') }} {{ spec.addr }}:{{ (spec.port | int) + (i | int) }} maxconn 10000 check inter 2000 rise 2 fall 5
+    {%- endfor %}
+
+{%- endfor %}
+

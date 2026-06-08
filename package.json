@@ -1,0 +1,82 @@
+{
+    "name":                           "@rse/junction",
+    "publishConfig":                  { "access": "public" },
+    "version":                        "0.9.0",
+    "description":                    "HTTP/REST over MQTT Gateway",
+    "keywords":                       [ "mqtt", "http", "rest", "gateway" ],
+    "license":                        "MIT",
+    "repository":                     { "type": "git", "url": "git+https://github.com/rse/junction.git" },
+    "homepage":                       "https://github.com/rse/junction",
+    "bugs":                           "https://github.com/rse/junction/issues",
+    "author": {
+        "name":                       "Dr. Ralf S. Engelschall",
+        "email":                      "rse@engelschall.com",
+        "url":                        "http://engelschall.com"
+    },
+    "type":                           "module",
+    "types":                          "./dst/junction-api.d.ts",
+    "module":                         "./dst/junction-api.js",
+    "main":                           "./dst/junction-api.js",
+    "exports": {
+        ".": {
+            "import":                 { "types": "./dst/junction-api.d.ts", "default": "./dst/junction-api.js" },
+            "require":                { "types": "./dst/junction-api.d.ts", "default": "./dst/junction-api.js" }
+        }
+    },
+    "bin": {
+        "junction":                   "dst/junction-cli.js"
+    },
+    "dependencies": {
+        "@dotenvx/dotenvx":           "1.69.1",
+        "@hapi/hapi":                 "21.4.9",
+        "mqtt":                       "5.15.1",
+        "mqtt-plus":                  "1.4.22",
+        "pure-uuid":                  "2.0.0",
+        "commander":                  "14.0.3",
+        "lru-cache":                  "11.5.0",
+        "chokidar":                   "5.0.0",
+        "mime-types":                 "3.0.2",
+        "file-type":                  "22.0.1",
+        "pino":                       "10.3.1",
+        "pino-pretty":                "13.1.3",
+        "luxon":                      "3.7.2",
+        "mosquitto":                  "1.1.0",
+        "execa":                      "9.6.1",
+        "selfsigned":                 "5.5.0",
+        "nunjucks":                   "3.2.4",
+        "@rse/nunjucks-addons":       "2.2.0",
+        "js-yaml":                    "4.1.1",
+        "valibot":                    "1.4.1"
+    },
+    "devDependencies": {
+        "@types/node":                "25.9.1",
+        "@types/mime-types":          "3.0.1",
+        "@types/luxon":               "3.7.1",
+        "@types/nunjucks":            "3.2.6",
+        "@types/js-yaml":             "4.0.9",
+
+        "@rse/stx":                   "1.1.5",
+        "shx":                        "0.4.0",
+        "eslint":                     "9.39.4",
+        "eslint-plugin-node":         "11.1.0",
+        "globals":                    "17.6.0",
+        "@eslint/js":                 "9.39.4",
+        "@eslint/eslintrc":           "3.3.5",
+        "tsx":                        "4.22.3",
+        "jiti":                       "2.7.0",
+        "typescript":                 "6.0.3",
+        "typescript-eslint":          "8.60.0",
+        "@typescript-eslint/parser":  "8.60.0",
+        "vite":                       "8.0.14",
+        "vite-plugin-node-polyfills": "0.28.0",
+        "@wroud/vite-plugin-tsc":     "0.12.3"
+    },
+    "upd": [
+        "!eslint",
+        "!@eslint/js"
+    ],
+    "scripts": {
+        "prepublishOnly":             "npm start build",
+        "start":                      "stx -v4 -c etc/stx.conf"
+    }
+}

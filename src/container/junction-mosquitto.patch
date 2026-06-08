@@ -1,0 +1,135 @@
+Index: config.mk
+--- config.mk.orig	2026-02-09 10:29:46
++++ config.mk	2026-05-14 00:41:25
+@@ -180,11 +180,11 @@
+ ARCH:=$(shell uname -p)
+ 
+ INSTALL?=install
+-prefix?=/usr/local
++prefix?=${PREFIX}
+ incdir?=${prefix}/include
+-libdir?=${prefix}/lib${LIB_SUFFIX}
+-localedir?=${prefix}/share/locale
+-mandir?=${prefix}/share/man
++libdir?=${prefix}/lib
++localedir?=${PREFIX}/share/locale
++mandir?=${PREFIX}/man
+ STRIP?=strip
+ 
+ ifeq ($(UNAME),SunOS)
+@@ -278,7 +278,7 @@
+ 
+ ifeq ($(WITH_WEBSOCKETS),lws)
+ 	LOCAL_CPPFLAGS+=-DWITH_WEBSOCKETS=WS_IS_LWS
+-	LOCAL_LDADD+=-lwebsockets
++	LOCAL_LDADD+=-lwebsockets -lssl -lcrypto -lz
+ endif
+ 
+ ifeq ($(WITH_STRIP),yes)
+Index: lib/send_publish.c
+--- lib/send_publish.c.orig	2026-02-09 10:29:46
++++ lib/send_publish.c	2026-05-14 00:38:10
+@@ -41,6 +41,39 @@
+ #include "utlist.h"
+ 
+ 
++static char *publish__format_payload(const void *payload, uint32_t payloadlen)
++{
++	const unsigned char *p = (const unsigned char *)payload;
++	uint32_t i;
++	uint32_t outlen = 1;
++	char *out;
++	char *w;
++
++	for(i = 0; i < payloadlen; i++){
++		if(p[i] >= 0x20 && p[i] <= 0x7E){
++			outlen += 1;
++		}else{
++			outlen += 4;
++		}
++	}
++	out = mosquitto_malloc(outlen);
++	if(!out){
++		return NULL;
++	}
++	w = out;
++	for(i = 0; i < payloadlen; i++){
++		if(p[i] >= 0x20 && p[i] <= 0x7E){
++			*w++ = (char)p[i];
++		}else{
++			snprintf(w, 5, "\\x%02X", p[i]);
++			w += 4;
++		}
++	}
++	*w = '\0';
++	return out;
++}
++
++
+ int send__publish(struct mosquitto *mosq, uint16_t mid, const char *topic, uint32_t payloadlen, const void *payload, uint8_t qos, bool retain, bool dup, uint32_t subscription_identifier, const mosquitto_property *store_props, uint32_t expiry_interval)
+ {
+ #ifdef WITH_BROKER
+@@ -173,7 +206,11 @@
+ 						mosquitto_FREE(mapped_topic);
+ 						mapped_topic = topic_temp;
+ 					}
+-					log__printf(mosq, MOSQ_LOG_DEBUG, "Sending PUBLISH to %s (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))", SAFE_PRINT(mosq->id), dup, qos, retain, mid, mapped_topic, (long)payloadlen);
++					{
++						char *payload_str = publish__format_payload(payload, payloadlen);
++						log__printf(mosq, MOSQ_LOG_DEBUG, "Sending PUBLISH to %s (d%d, q%d, r%d, m%d, '%s', '%s' (%ld bytes))", SAFE_PRINT(mosq->id), dup, qos, retain, mid, mapped_topic, payload_str ? payload_str : "", (long)payloadlen);
++						mosquitto_FREE(payload_str);
++					}
+ 					metrics__int_inc(mosq_counter_pub_bytes_sent, payloadlen);
+ 					rc =  send__real_publish(mosq, mid, mapped_topic, payloadlen, payload, qos, retain, dup, subscription_identifier, store_props, expiry_interval);
+ 					mosquitto_FREE(mapped_topic);
+@@ -183,10 +220,18 @@
+ 		}
+ 	}
+ #endif
+-	log__printf(mosq, MOSQ_LOG_DEBUG, "Sending PUBLISH to %s (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))", SAFE_PRINT(mosq->id), dup, qos, retain, mid, topic, (long)payloadlen);
++	{
++		char *payload_str = publish__format_payload(payload, payloadlen);
++		log__printf(mosq, MOSQ_LOG_DEBUG, "Sending PUBLISH to %s (d%d, q%d, r%d, m%d, '%s', '%s' (%ld bytes))", SAFE_PRINT(mosq->id), dup, qos, retain, mid, topic, payload_str ? payload_str : "", (long)payloadlen);
++		mosquitto_FREE(payload_str);
++	}
+ 	metrics__int_inc(mosq_counter_pub_bytes_sent, payloadlen);
+ #else
+-	log__printf(mosq, MOSQ_LOG_DEBUG, "Client %s sending PUBLISH (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))", SAFE_PRINT(mosq->id), dup, qos, retain, mid, topic, (long)payloadlen);
++	{
++		char *payload_str = publish__format_payload(payload, payloadlen);
++		log__printf(mosq, MOSQ_LOG_DEBUG, "Client %s sending PUBLISH (d%d, q%d, r%d, m%d, '%s', '%s' (%ld bytes))", SAFE_PRINT(mosq->id), dup, qos, retain, mid, topic, payload_str ? payload_str : "", (long)payloadlen);
++		mosquitto_FREE(payload_str);
++	}
+ #endif
+ 
+ #ifdef WITH_BROKER
+Index: src/CMakeLists.txt
+--- src/CMakeLists.txt.orig	2026-02-09 10:29:46
++++ src/CMakeLists.txt	2026-05-14 00:44:20
+@@ -248,12 +248,12 @@
+ 			"${mosquitto_SOURCE_DIR}/deps/picohttpparser")
+ 	else()
+ 		if(STATIC_WEBSOCKETS)
+-			target_link_libraries(mosquitto PRIVATE websockets)
++			target_link_libraries(mosquitto PRIVATE websockets ssl crypto z)
+ 			if(WIN32)
+ 				target_link_libraries(mosquitto PRIVATE iphlpapi)
+ 			endif()
+ 		else(STATIC_WEBSOCKETS)
+-			target_link_libraries(mosquitto PRIVATE websockets_shared)
++			target_link_libraries(mosquitto PRIVATE websockets ssl crypto z)
+ 		endif()
+ 	endif()
+ endif()
+Index: src/conf.c
+--- src/conf.c.orig	2026-02-09 10:29:46
++++ src/conf.c	2026-05-14 00:42:19
+@@ -1864,7 +1864,7 @@
+ 						int file_count;
+ 
+ 						/* Only process include_dir from the main config file. */
+-						token = strtok_r(NULL, "", &saveptr);
++						token = strtok_r(NULL, " ", &saveptr);
+ 						REQUIRE_NON_EMPTY_OPTION(token, "include_dir");
+ 
+ 						rc = config__get_dir_files(token, &files, &file_count);

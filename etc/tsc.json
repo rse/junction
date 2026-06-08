@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "outDir":                  "../dst",
+        "target":                  "es2022",
+        "module":                  "ESNext",
+        "moduleResolution":        "Bundler",
+        "useDefineForClassFields": false,
+        "composite":               false,
+        "strict":                  true,
+        "strictFunctionTypes":     true,
+        "resolveJsonModule":       true,
+        "isolatedModules":         false,
+        "lib":                     [],
+        "skipLibCheck":            true,
+        "declaration":             true,
+        "noEmit":                  false,
+        "rootDir":                 "../src"
+    },
+    "include": [
+        "../src/**/*.ts",
+        "../src/**/*.d.ts"
+    ],
+    "exclude": [
+        "../node_modules"
+    ]
+}
