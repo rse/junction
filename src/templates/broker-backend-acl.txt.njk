@@ -6,20 +6,55 @@
 #   shared/anonymous ACL list
 topic   read       $SYS/#
 pattern write      $SYS/broker/connection/%c/state
-pattern read       peer/%c
-topic   read       event/#
-topic   write      service/#
-
-#   user ACL list (backend connection)
-user    {{ broker[instance.name].backend.user }}
-topic   write      peer/#
-topic   write      event/#
-topic   read       service/#
-topic   read       $share/service/#
 
 #   user ACL list (bridge connection)
 user    {{ broker[instance.name].bridge.user }}
 topic   readwrite  $SYS/#
 topic   readwrite  #
 topic   readwrite  $share/#
+
+#   user ACL list (backend connection)
+user    {{ broker[instance.name].backend.user }}
+
+#   ---- event emission ----
+
+topic   write     frontend/+/event-emission/+
+
+topic   read      backend/+/event-emission/any
+topic   read      $share/backend/backend/+/event-emission/any
+pattern read      backend/+/event-emission/%c
+pattern read      $share/backend/backend/+/event-emission/%c
+
+#   ---- service call ----
+
+topic   read      backend/+/service-call-request/any
+topic   read      $share/backend/backend/+/service-call-request/any
+pattern read      backend/+/service-call-request/%c
+pattern read      $share/backend/backend/+/service-call-request/%c
+pattern write     backend/+/service-call-response/+
+
+topic   write     frontend/+/service-call-request/+
+pattern read      frontend/+/service-call-response/%c
+
+#   ---- source fetch ----
+
+topic   read      backend/+/source-fetch-request/any
+topic   read      $share/backend/backend/+/source-fetch-request/any
+pattern read      backend/+/source-fetch-request/%c
+pattern read      $share/backend/backend/+/source-fetch-request/%c
+topic   write     backend/+/source-fetch-response/+
+
+topic   write     frontend/+/source-fetch-request/+
+pattern read      frontend/+/source-fetch-response/%c
+
+#   ---- sink push ----
+
+topic   read      backend/+/sink-push-request/any
+topic   read      $share/backend/backend/+/sink-push-request/any
+pattern read      backend/+/sink-push-request/%c
+pattern read      $share/backend/backend/+/sink-push-request/%c
+topic   write     backend/+/sink-push-response/+
+
+topic   write     frontend/+/sink-push-request/+
+pattern read      frontend/+/sink-push-response/%c
 
