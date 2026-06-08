@@ -211,8 +211,6 @@ export default class JunctionFrontend {
         /*  start HTTP/REST service  */
         await this.hapi.start()
 
-        await new Promise((resolve) => setTimeout(resolve, 10 * 1000))
-
         /*  establish MQTT service  */
         const tmp = new URL(this.mqttUrl)
         tmp.password = ""
