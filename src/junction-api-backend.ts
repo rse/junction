@@ -37,6 +37,7 @@ import { lookup }                 from "mime-types"
 import { fileTypeFromFile }       from "file-type"
 import pino                       from "pino"
 import type { Logger }            from "pino"
+import { nanoid }                 from "nanoid"
 
 /*  MQTT API type  */
 type API = {
@@ -105,6 +106,7 @@ export default class JunctionBackend {
         const topicPrefix = (url.searchParams.get("topic") ?? "").replace(/^\//, "").replace(/\/$/, "")
         url.search = ""
         const mqtt = MQTT.connect(url.href, {
+            clientId: `junction-backend-${nanoid()}`,
             path: pathname,
             ...(username !== undefined && username !== "" ? { username } : {}),
             ...(password !== undefined && password !== "" ? { password } : {}),

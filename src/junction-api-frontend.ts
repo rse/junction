@@ -31,6 +31,7 @@ import type { Service, Source }   from "mqtt-plus"
 import pino                       from "pino"
 import type { Logger }            from "pino"
 import { DateTime }               from "luxon"
+import { nanoid }                 from "nanoid"
 
 /*  cache entry type  */
 interface Asset {
@@ -213,6 +214,7 @@ export default class JunctionFrontend {
         const topicPrefix = (url.searchParams.get("topic") ?? "").replace(/^\//, "").replace(/\/$/, "")
         url.search = ""
         const mqtt = MQTT.connect(url.href, {
+            clientId: `junction-frontend-${nanoid()}`,
             path: pathname,
             ...(username !== undefined && username !== "" ? { username } : {}),
             ...(password !== undefined && password !== "" ? { password } : {}),
