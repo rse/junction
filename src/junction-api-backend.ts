@@ -138,6 +138,27 @@ export default class JunctionBackend {
             mqtt.on("error",   onError)
             mqtt.on("connect", onConnect)
         })
+        this.logger.info("connected to MQTT broker")
+
+        /*  observe MQTT broker connection situation  */
+        mqtt.on("reconnect", () => {
+            this.logger.info("reconnecting to MQTT broker")
+        })
+        mqtt.on("connect", () => {
+            this.logger.info("reconnected to MQTT broker")
+        })
+        mqtt.on("offline", () => {
+            this.logger.warn("disconnected from MQTT broker (now offline)")
+        })
+        mqtt.on("close", () => {
+            this.logger.warn("connection to MQTT broker closed")
+        })
+        mqtt.on("disconnect", () => {
+            this.logger.warn("disconnected from MQTT broker (by broker request)")
+        })
+        mqtt.on("error", (err: Error) => {
+            this.logger.error(`MQTT broker connection error: ${err.message}`)
+        })
 
         /*  enabling MQTT+ facility  */
         this.logger.info("starting MQTT+ service")
