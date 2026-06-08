@@ -48,14 +48,25 @@ protocol                websockets
 {% for i in range(0, broker[instance.name].instances.backend) %}
 #   bridging to backend #{{ i | pad(2, '0') }}
 connection              broker-{{ instance.name }}-backend-{{ i | pad(2, '0') }}
-local_clientid          broker-{{ instance.name }}-frontend-{{ instance.index | pad(2, '0') }}
-remote_clientid         broker-{{ instance.name }}-frontend-{{ instance.index | pad(2, '0') }}
+local_clientid          broker-{{ instance.name }}-frontend-{{ instance.index | pad(2, '0') }}-backend-{{ i | pad(2, '0') }}
+remote_clientid         broker-{{ instance.name }}-frontend-{{ instance.index | pad(2, '0') }}-backend-{{ i | pad(2, '0') }}
 address                 {{ broker[instance.name].bridge.addr }}:{{ (broker[instance.name].bridge.port | int) + (i | int) }}
 remote_username         {{ broker[instance.name].bridge.user }}
 remote_password         {{ broker[instance.name].bridge.pass }}
-topic                   peer/#    in  2 "" ""
-topic                   event/#   in  2 "" ""
-topic                   service/# out 2 "" ""
+topic                   backend/+/service-call-request/+   out 2 "" ""
+topic                   backend/+/service-call-response/+  in  2 "" ""
+topic                   backend/+/source-fetch-request/+   out 2 "" ""
+topic                   backend/+/source-fetch-response/+  in  2 "" ""
+topic                   backend/+/event-emission/+         out 2 "" ""
+topic                   backend/+/sink-push-request/+      out 2 "" ""
+topic                   backend/+/sink-push-response/+     in  2 "" ""
+topic                   frontend/+/service-call-request/+  in  2 "" ""
+topic                   frontend/+/service-call-response/+ out 2 "" ""
+topic                   frontend/+/source-fetch-request/+  in  2 "" ""
+topic                   frontend/+/source-fetch-response/+ out 2 "" ""
+topic                   frontend/+/event-emission/+        in  2 "" ""
+topic                   frontend/+/sink-push-request/+     in  2 "" ""
+topic                   frontend/+/sink-push-response/+    out 2 "" ""
 cleansession            true
 notifications           true
 bridge_max_packet_size  0
