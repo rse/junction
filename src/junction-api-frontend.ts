@@ -35,6 +35,7 @@ import { nanoid }                 from "nanoid"
 
 /*  cache entry type  */
 interface Asset {
+    path?:     string
     content:   Buffer
     type?:     string
     modified?: number
@@ -119,11 +120,12 @@ export default class JunctionFrontend {
                 return undefined
             const [ data, meta ] = await Promise.all([ response.buffer, response.meta ])
             const content  = Buffer.from(data)
+            const path2    = meta?.["path"]     ?? undefined
             const type     = meta?.["type"]     ?? "application/octet-stream"
             const modified = meta?.["modified"] ?? undefined
             const ttl      = meta?.["ttl"]      ?? 60 * 60 * 1000
             const headers  = meta?.["headers"]  ?? undefined
-            return { content, type, modified, ttl, headers }
+            return { path: path2, content, type, modified, ttl, headers }
         }
 
         /*  generate HTTP response  */
@@ -166,8 +168,16 @@ export default class JunctionFrontend {
                             return h.response({ error: "Not Found" }).code(404)
                         }
 
-                        /*  cache asset from backend  */
-                        this.cache.set(path, asset, { ttl: asset.ttl })
+                        /*  cache asset from backend under the canonical path
+                            the backend resolved it to (e.g. "" -> "index.html"),
+                            so cache-coherence events from the backend, which
+                            carry the canonical path, can invalidate it again;
+                            additionally alias it under the originally requested
+                            path so repeat identical requests still hit the cache  */
+                        const key = asset.path ?? path
+                        this.cache.set(key, asset, { ttl: asset.ttl })
+                        if (key !== path)
+                            this.cache.set(path, asset, { ttl: asset.ttl })
                     }
 
                     /*  support HTTP "If-Modified-Since" header  */
@@ -300,22 +310,32 @@ export default class JunctionFrontend {
             }
         })
 
+        /*  evict a canonical path plus any request-path aliases pointing at it
+            (e.g. evicting "index.html" must also drop the "" alias cached for
+            a "/" request, whose asset carries path "index.html")  */
+        const evictPath = (path: string): boolean => {
+            let evicted = false
+            for (const [ key, asset ] of this.cache.entries()) {
+                if (key === path || asset.path === path) {
+                    this.cache.delete(key)
+                    evicted = true
+                }
+            }
+            return evicted
+        }
+
         /*  configure MQTT frontend service for backend  */
         mqttp.service("frontend/refresh", async (path: string) => {
             this.logger.info(`cache: REFRESH: path: "${path}"`)
-            if (this.cache.has(path))
-                this.cache.delete(path)
+            evictPath(path)
             const resource = await loadResource(path)
             if (resource !== undefined)
-                this.cache.set(path, resource, { ttl: resource.ttl })
+                this.cache.set(resource.path ?? path, resource, { ttl: resource.ttl })
             return true
         })
         mqttp.service("frontend/delete", async (path: string) => {
             this.logger.info(`cache: DELETE: path: "${path}"`)
-            if (!this.cache.has(path))
-                return false
-            this.cache.delete(path)
-            return true
+            return evictPath(path)
         })
 
         /*  update state  */

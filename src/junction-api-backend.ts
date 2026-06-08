@@ -320,6 +320,7 @@ export default class JunctionBackend {
             this.logger.info(`access: path: "${filePath}", response: OK (bytes: ${stat.size}, type: "${type}")`)
             info.stream = readable
             info.meta = {}
+            info.meta.path = filePath
             info.meta.type = type
             info.meta.modified = stat.mtimeMs
         })
