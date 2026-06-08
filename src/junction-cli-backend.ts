@@ -84,3 +84,4 @@ export function configureCommand (program: Command): Command {
             process.on("SIGTERM", shutdown)
         })
 }
+
