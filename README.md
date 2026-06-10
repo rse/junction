@@ -134,8 +134,15 @@ configurations.
 **Junction** can also be embedded as a library. The package exports
 the four API classes `JunctionBroker`, `JunctionBackend`,
 `JunctionFrontend`, and `JunctionOrchestrator`, all of which follow the
-same `start()`/`stop()` lifecycle pattern. The connection-related
-arguments are passed positionally, followed by a final `options` object:
+same `start()`/`stop()` lifecycle pattern. For `JunctionBackend` and
+`JunctionFrontend` all arguments are passed in a single `options` object.
+The MQTT broker is selected through two *mutually exclusive* options:
+either `mqttUrl` (a connect URL Junction connects on its own) or `mqtt`
+(a pre-connected MQTT.js client shared/owned by the caller); exactly one
+of the two must be given. With `mqtt`, the topic namespace prefix
+otherwise taken from the URL's `?topic=` parameter is supplied via the
+optional `topic` option (which also acts as a fallback when an `mqttUrl`
+without `?topic=` is used):
 
 ```ts
 import {
@@ -156,32 +163,42 @@ await broker.start()
 ```
 
 ```ts
-/*  backend (filesystem → MQTT+): new JunctionBackend(directory, connectUrl, options)  */
-const backend = new JunctionBackend(
-    "./htdocs",
-    "mqtt://user:pass@127.0.0.1:1883/?topic=example",
-    {
-        exclude:  [ "**/*.bak" ],
-        codec:    "cbor",
-        timeout:  5000,
-        logLevel: "info"
-    }
-)
+/*  backend (filesystem → MQTT+): new JunctionBackend(options)  */
+const backend = new JunctionBackend({
+    directory: "./htdocs",
+    mqttUrl:   "mqtt://user:pass@127.0.0.1:1883/?topic=example",
+    exclude:   [ "**/*.bak" ],
+    codec:     "cbor",
+    timeout:   5000,
+    logLevel:  "info"
+})
 await backend.start()
 ```
 
 ```ts
-/*  frontend (HTTP → MQTT+): new JunctionFrontend(listenUrl, connectUrl, options)  */
-const frontend = new JunctionFrontend(
-    "http://0.0.0.0:8080",
-    "mqtt://user:pass@127.0.0.1:1883/?topic=example",
-    {
-        codec:    "cbor",
-        timeout:  5000,
-        logLevel: "info"
-    }
-)
+/*  frontend (HTTP → MQTT+): new JunctionFrontend(options)  */
+const frontend = new JunctionFrontend({
+    httpUrl:  "http://0.0.0.0:8080",
+    mqttUrl:  "mqtt://user:pass@127.0.0.1:1883/?topic=example",
+    codec:    "cbor",
+    timeout:  5000,
+    logLevel: "info"
+})
 await frontend.start()
+```
+
+```ts
+/*  alternatively: share a single pre-connected MQTT.js client (caller owns it)  */
+import MQTT from "mqtt"
+const mqtt = await MQTT.connectAsync("mqtt://user:pass@127.0.0.1:1883")
+const backend2 = new JunctionBackend({
+    directory: "./htdocs",
+    mqtt,
+    topic:     "example",
+    logLevel:  "info"
+})
+await backend2.start()
+/*  ...later: backend2.stop() leaves "mqtt" connected; the caller calls mqtt.end()  */
 ```
 
 ```ts

@@ -62,7 +62,9 @@ export function configureCommand (program: Command): Command {
             .default("json"))
         .action(async (opts: Opts) => {
             /*  establish service  */
-            const service = new JunctionFrontend(opts.listen, opts.connect, {
+            const service = new JunctionFrontend({
+                httpUrl:  opts.listen,
+                mqttUrl:  opts.connect,
                 logLevel: opts.logLevel,
                 timeout:  opts.timeout,
                 codec:    opts.codec

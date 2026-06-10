@@ -2,6 +2,11 @@
 ChangeLog
 =========
 
+0.9.5 (2026-06-10)
+------------------
+
+- IMPROVEMENT: accept a pre-connected MQTT client and move the broker URL into the options
+
 0.9.4 (2026-06-10)
 ------------------
 

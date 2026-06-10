@@ -53,6 +53,10 @@ type API = {
 /*  service options  */
 type LogLevel = "debug" | "info" | "warn" | "error"
 type Options = {
+    httpUrl:  string
+    mqttUrl?: string
+    mqtt?:    MqttClient
+    topic?:   string
     logLevel: LogLevel
     timeout:  number
     codec:    "json" | "cbor"
@@ -66,16 +70,15 @@ export class JunctionFrontend {
         maxSize:         50 * 1024 * 1024,
         sizeCalculation: (entry) => Math.max(1, entry.content.byteLength)
     })
-    private hapi:    Hapi.Server | null = null
-    private mqtt:    MqttClient  | null = null
-    private mqttp:   MQTTp<API>  | null = null
-    private logger!: Logger
-    private started: boolean            = false
+    private hapi:     Hapi.Server | null = null
+    private mqtt:     MqttClient  | null = null
+    private mqttp:    MQTTp<API>  | null = null
+    private logger!:  Logger
+    private started:  boolean            = false
+    private ownsMqtt: boolean            = false
 
     /*  API construction  */
     constructor (
-        private httpUrl: string,
-        private mqttUrl: string,
         private options: Options
     ) {}
 
@@ -84,6 +87,12 @@ export class JunctionFrontend {
         /*  sanity check state  */
         if (this.started)
             throw new Error("service already started")
+
+        /*  sanity check MQTT connection options (mutually exclusive)  */
+        const mqttUrl  = this.options.mqttUrl ?? null
+        const mqttInst = this.options.mqtt    ?? null
+        if ((mqttUrl === null) === (mqttInst === null))
+            throw new Error("exactly one of options.mqttUrl and options.mqtt must be provided")
 
         /*  establish logging facility  */
         this.logger = pino({
@@ -105,8 +114,8 @@ export class JunctionFrontend {
         this.logger.info("starting Junction FRONTEND service")
 
         /*  establish HTTP/REST service  */
-        this.logger.info(`starting HTTP/REST service: "${this.httpUrl}"`)
-        let url = new URL(this.httpUrl)
+        this.logger.info(`starting HTTP/REST service: "${this.options.httpUrl}"`)
+        const url = new URL(this.options.httpUrl)
         const host = url.hostname
         const port = parseInt(url.port ?? "80", 10)
         this.hapi  = Hapi.server({ port, host, routes: { cors: true } })
@@ -212,51 +221,65 @@ export class JunctionFrontend {
         await this.hapi.start()
 
         /*  establish MQTT service  */
-        const tmp = new URL(this.mqttUrl)
-        tmp.password = ""
-        this.logger.info(`starting MQTT service: "${tmp.toString()}"`)
-        url = new URL(this.mqttUrl)
-        const username = url.username; url.username = ""
-        const password = url.password; url.password = ""
-        const pathname = url.pathname; url.pathname = ""
-        const topicPrefix = (url.searchParams.get("topic") ?? "").replace(/^\//, "").replace(/\/$/, "")
-        url.search = ""
-        const mqtt = MQTT.connect(url.href, {
-            clientId: `junction-frontend-${nanoid()}`,
-            path: pathname,
-            ...(username !== undefined && username !== "" ? { username } : {}),
-            ...(password !== undefined && password !== "" ? { password } : {}),
-            rejectUnauthorized: false,
-            wsOptions: { rejectUnauthorized: false },
-            log: (...args: any[]) => {
-                if (this.logger.isLevelEnabled("debug")) {
-                    const msg = args.map((a) => typeof a === "string" ? a : JSON.stringify(a)).join(" ")
-                    this.logger.debug(`MQTT: ${msg}`)
+        let mqtt: MqttClient
+        let topicPrefix: string
+        if (mqttUrl !== null) {
+            /*  case 1: connect to MQTT broker via a given URL (we own the client)  */
+            const tmp = new URL(mqttUrl)
+            tmp.password = ""
+            this.logger.info(`starting MQTT service: "${tmp.toString()}"`)
+            const url = new URL(mqttUrl)
+            const username = url.username; url.username = ""
+            const password = url.password; url.password = ""
+            const pathname = url.pathname; url.pathname = ""
+            topicPrefix = (url.searchParams.get("topic") ?? this.options.topic ?? "").replace(/^\//, "").replace(/\/$/, "")
+            url.search = ""
+            mqtt = MQTT.connect(url.href, {
+                clientId: `junction-frontend-${nanoid()}`,
+                path: pathname,
+                ...(username !== undefined && username !== "" ? { username } : {}),
+                ...(password !== undefined && password !== "" ? { password } : {}),
+                rejectUnauthorized: false,
+                wsOptions: { rejectUnauthorized: false },
+                log: (...args: any[]) => {
+                    if (this.logger.isLevelEnabled("debug")) {
+                        const msg = args.map((a) => typeof a === "string" ? a : JSON.stringify(a)).join(" ")
+                        this.logger.debug(`MQTT: ${msg}`)
+                    }
                 }
-            }
-        })
-        this.mqtt = mqtt
-        await new Promise<void>((resolve, reject) => {
-            const timer = setTimeout(() => {
-                mqtt.off("error",   onError)
-                mqtt.off("connect", onConnect)
-                mqtt.end(true)
-                reject(new Error(`timeout of ${this.options.timeout}ms while connecting to MQTT broker`))
-            }, this.options.timeout)
-            const onConnect = () => {
-                clearTimeout(timer)
-                mqtt.off("error", onError)
-                resolve()
-            }
-            const onError = (err: Error) => {
-                clearTimeout(timer)
-                mqtt.off("connect", onConnect)
-                reject(err)
-            }
-            mqtt.on("error",   onError)
-            mqtt.on("connect", onConnect)
-        })
-        this.logger.info("connected to MQTT broker")
+            })
+            this.mqtt = mqtt
+            this.ownsMqtt = true
+            await new Promise<void>((resolve, reject) => {
+                const timer = setTimeout(() => {
+                    mqtt.off("error",   onError)
+                    mqtt.off("connect", onConnect)
+                    mqtt.end(true)
+                    reject(new Error(`timeout of ${this.options.timeout}ms while connecting to MQTT broker`))
+                }, this.options.timeout)
+                const onConnect = () => {
+                    clearTimeout(timer)
+                    mqtt.off("error", onError)
+                    resolve()
+                }
+                const onError = (err: Error) => {
+                    clearTimeout(timer)
+                    mqtt.off("connect", onConnect)
+                    reject(err)
+                }
+                mqtt.on("error",   onError)
+                mqtt.on("connect", onConnect)
+            })
+            this.logger.info("connected to MQTT broker")
+        }
+        else {
+            /*  case 2: reuse a pre-connected MQTT client (the caller owns it)  */
+            this.logger.info("reusing pre-connected MQTT client")
+            mqtt = mqttInst!
+            this.mqtt = mqtt
+            this.ownsMqtt = false
+            topicPrefix = (this.options.topic ?? "").replace(/^\//, "").replace(/\/$/, "")
+        }
 
         /*  observe MQTT broker connection situation  */
         mqtt.on("reconnect", () => {
@@ -360,10 +383,12 @@ export class JunctionFrontend {
             this.mqttp = null
         }
 
-        /*  stop MQTT service  */
+        /*  stop MQTT service (but only if we own the client)  */
         if (this.mqtt !== null) {
-            this.logger.info("stopping MQTT service")
-            this.mqtt.end()
+            if (this.ownsMqtt) {
+                this.logger.info("stopping MQTT service")
+                this.mqtt.end()
+            }
             this.mqtt = null
         }
 
