@@ -27,7 +27,7 @@
         "junction":                   "dst/junction-cli.js"
     },
     "dependencies": {
-        "@dotenvx/dotenvx":           "1.71.1",
+        "@dotenvx/dotenvx":           "1.71.2",
         "@hapi/hapi":                 "21.4.9",
         "mqtt":                       "5.15.1",
         "mqtt-plus":                  "1.4.23",
