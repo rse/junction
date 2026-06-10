@@ -26,7 +26,7 @@
 import { Command, Option } from "commander"
 
 /*  internal dependencies  */
-import JunctionBackend     from "./junction-api-backend.js"
+import { JunctionBackend } from "./junction-api-backend.js"
 
 /*  option value types  */
 type LogLevel = "error" | "warn" | "info" | "debug"

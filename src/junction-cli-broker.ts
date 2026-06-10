@@ -26,7 +26,7 @@
 import { Command, Option } from "commander"
 
 /*  internal dependencies  */
-import JunctionBroker      from "./junction-api-broker.js"
+import { JunctionBroker }  from "./junction-api-broker.js"
 
 /*  option value types  */
 type LogLevel = "error" | "warn" | "info" | "debug"

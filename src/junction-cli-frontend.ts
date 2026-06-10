@@ -23,10 +23,10 @@
 */
 
 /*  external dependencies  */
-import { Command, Option } from "commander"
+import { Command, Option }  from "commander"
 
 /*  internal dependencies  */
-import JunctionFrontend    from "./junction-api-frontend.js"
+import { JunctionFrontend } from "./junction-api-frontend.js"
 
 /*  option value types  */
 type LogLevel = "error" | "warn" | "info" | "debug"

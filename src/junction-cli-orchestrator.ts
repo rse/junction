@@ -23,10 +23,10 @@
 */
 
 /*  external dependencies  */
-import { Command, Option }   from "commander"
+import { Command, Option }      from "commander"
 
 /*  internal dependencies  */
-import JunctionOrchestrator  from "./junction-api-orchestrator.js"
+import { JunctionOrchestrator } from "./junction-api-orchestrator.js"
 
 /*  option value types  */
 type LogLevel = "error" | "warn" | "info" | "debug"
