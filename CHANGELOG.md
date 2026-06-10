@@ -2,6 +2,14 @@
 ChangeLog
 =========
 
+0.9.3 (2026-06-10)
+------------------
+
+- FEATURE: add nftables router type as alternative to HAProxy in orchestrator
+- FEATURE: add backend "watch" option and CLI --no-watch to disable filesystem watching
+- IMPROVEMENT: publish packages to the GitHub container registry
+- CLEANUP: add back trailing blank lines in source files
+
 0.9.2 (2026-06-08)
 ------------------
 
