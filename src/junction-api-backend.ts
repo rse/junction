@@ -50,6 +50,7 @@ type API = {
 type LogLevel = "debug" | "info" | "warn" | "error"
 type Options = {
     logLevel: LogLevel
+    watch:    boolean
     exclude:  string[]
     timeout:  number
     codec:    "json" | "cbor"
@@ -195,63 +196,67 @@ export default class JunctionBackend {
         })
 
         /*  watch filesystem  */
-        this.logger.info(`starting filesystem watcher: "${this.directory}"`)
         const baseDir = path.normalize(path.resolve(this.directory))
         const relPath = (file: string) => {
             const abs = path.normalize(path.resolve(file))
             const rel = path.relative(baseDir, abs)
             return rel.split(path.sep).join("/")
         }
-        const excludePatterns = this.options.exclude
-        this.watcher = chokidar.watch(this.directory, {
-            awaitWriteFinish: {
-                stabilityThreshold: 1000,
-                pollInterval:       200
-            },
-            persistent:             true,
-            atomic:                 1000,
-            alwaysStat:             true,
-            interval:               200,
-            binaryInterval:         200,
-            ignored: [
-                (file: string, stat?: fs.Stats) => {
-                    if (file.match(/(?:^~\$|\/~\$|node_modules\/)/) !== null)
-                        return true
-                    return false
+        if (this.options.watch) {
+            this.logger.info(`starting filesystem watcher: "${this.directory}"`)
+            const excludePatterns = this.options.exclude
+            this.watcher = chokidar.watch(this.directory, {
+                awaitWriteFinish: {
+                    stabilityThreshold: 1000,
+                    pollInterval:       200
                 },
-                ...excludePatterns
-            ]
-        })
-        if (excludePatterns.length > 0)
-            this.logger.info("excluding glob patterns from watching: " +
-                excludePatterns.map((p) => `"${p}"`).join(", "))
-
-        /*  trigger frontend on added files  */
-        this.watcher.on("add", async (file: string, stats?: fs.Stats) => {
-            const path = relPath(file)
-            this.logger.info(`filesystem change: path: "${path}", event: "add"`)
-            await this.mqttp?.call("frontend/refresh", path).catch((err) => {
-                this.logger.warn(`MQTT call failed for "frontend/refresh": path: ${path}: ${err}`)
+                persistent:             true,
+                atomic:                 1000,
+                alwaysStat:             true,
+                interval:               200,
+                binaryInterval:         200,
+                ignored: [
+                    (file: string, stat?: fs.Stats) => {
+                        if (file.match(/(?:^~\$|\/~\$|node_modules\/)/) !== null)
+                            return true
+                        return false
+                    },
+                    ...excludePatterns
+                ]
             })
-        })
+            if (excludePatterns.length > 0)
+                this.logger.info("excluding glob patterns from watching: " +
+                    excludePatterns.map((p) => `"${p}"`).join(", "))
 
-        /*  trigger frontend on modified files  */
-        this.watcher.on("change", async (file: string, stats?: fs.Stats) => {
-            const path = relPath(file)
-            this.logger.info(`filesystem change: path: "${path}", event: "change"`)
-            await this.mqttp?.call("frontend/refresh", path).catch((err) => {
-                this.logger.warn(`MQTT call failed for "frontend/refresh": path: ${path}: ${err}`)
+            /*  trigger frontend on added files  */
+            this.watcher.on("add", async (file: string, stats?: fs.Stats) => {
+                const path = relPath(file)
+                this.logger.info(`filesystem change: path: "${path}", event: "add"`)
+                await this.mqttp?.call("frontend/refresh", path).catch((err) => {
+                    this.logger.warn(`MQTT call failed for "frontend/refresh": path: ${path}: ${err}`)
+                })
             })
-        })
 
-        /*  trigger frontend on removed files  */
-        this.watcher.on("unlink", async (file: string) => {
-            const path = relPath(file)
-            this.logger.info(`filesystem change: path: "${path}", event: "unlink"`)
-            await this.mqttp?.call("frontend/delete", path).catch((err) => {
-                this.logger.warn(`MQTT call failed for "frontend/delete": path: ${path}: ${err}`)
+            /*  trigger frontend on modified files  */
+            this.watcher.on("change", async (file: string, stats?: fs.Stats) => {
+                const path = relPath(file)
+                this.logger.info(`filesystem change: path: "${path}", event: "change"`)
+                await this.mqttp?.call("frontend/refresh", path).catch((err) => {
+                    this.logger.warn(`MQTT call failed for "frontend/refresh": path: ${path}: ${err}`)
+                })
             })
-        })
+
+            /*  trigger frontend on removed files  */
+            this.watcher.on("unlink", async (file: string) => {
+                const path = relPath(file)
+                this.logger.info(`filesystem change: path: "${path}", event: "unlink"`)
+                await this.mqttp?.call("frontend/delete", path).catch((err) => {
+                    this.logger.warn(`MQTT call failed for "frontend/delete": path: ${path}: ${err}`)
+                })
+            })
+        }
+        else
+            this.logger.info("filesystem watching disabled")
 
         /*  utility function for determine MIME type  */
         const detectMimeType = async (path: string): Promise<string> => {
@@ -345,14 +350,14 @@ export default class JunctionBackend {
         /*  stop MQTT+ service  */
         if (this.mqttp !== null) {
             this.logger.info("stopping MQTT+ service")
-            this.mqttp.destroy()
+            await this.mqttp.destroy()
             this.mqttp = null
         }
 
         /*  stop MQTT service  */
         if (this.mqtt !== null) {
             this.logger.info("stopping MQTT service")
-            this.mqtt.end()
+            await this.mqtt.endAsync(true)
             this.mqtt = null
         }
 

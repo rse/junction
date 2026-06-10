@@ -34,6 +34,7 @@ type Codec    = "json"  | "cbor"
 type Opts = {
     directory: string
     connect:   string
+    watch:     boolean
     exclude:   string[]
     logLevel:  LogLevel
     timeout:   number
@@ -50,6 +51,8 @@ export function configureCommand (program: Command): Command {
         .addOption(new Option("-c, --connect <url>",
             "TCP/MQTT connect URL")
             .default("mqtt://example:example@127.0.0.1:1883/example"))
+        .addOption(new Option("--no-watch",
+            "Disable filesystem watching entirely"))
         .addOption(new Option("-e, --exclude <glob>",
             "Glob pattern to exclude from directory watching (repeatable)")
             .argParser((value: string, prev: string[]) => prev.concat(value))
@@ -69,6 +72,7 @@ export function configureCommand (program: Command): Command {
             /*  establish service  */
             const service = new JunctionBackend(opts.directory, opts.connect, {
                 logLevel: opts.logLevel,
+                watch:    opts.watch,
                 exclude:  opts.exclude,
                 timeout:  opts.timeout,
                 codec:    opts.codec
