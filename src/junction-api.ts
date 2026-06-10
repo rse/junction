@@ -23,8 +23,8 @@
 */
 
 /*  just pass-through the sub-APIs  */
-export * from "./junction-api-frontend.js"
-export * from "./junction-api-broker.js"
-export * from "./junction-api-backend.js"
-export * from "./junction-api-orchestrator.js"
+export { JunctionFrontend }     from "./junction-api-frontend.js"
+export { JunctionBroker }       from "./junction-api-broker.js"
+export { JunctionBackend }      from "./junction-api-backend.js"
+export { JunctionOrchestrator } from "./junction-api-orchestrator.js"
 

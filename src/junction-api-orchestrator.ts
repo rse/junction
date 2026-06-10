@@ -133,7 +133,7 @@ type Child = {
 }
 
 /*  service  */
-export default class JunctionOrchestrator {
+export class JunctionOrchestrator {
     /*  internal state  */
     private children:    Child[]               | null = null
     private runDir:      string                | null = null

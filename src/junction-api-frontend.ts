@@ -59,7 +59,7 @@ type Options = {
 }
 
 /*  service  */
-export default class JunctionFrontend {
+export class JunctionFrontend {
     /*  internal state  */
     private cache = new LRUCache<string, Asset>({
         max:             1000,

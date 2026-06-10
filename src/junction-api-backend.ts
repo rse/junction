@@ -57,7 +57,7 @@ type Options = {
 }
 
 /*  service  */
-export default class JunctionBackend {
+export class JunctionBackend {
     private mqtt:    MqttClient | null = null
     private mqttp:   MQTTp<API> | null = null
     private watcher: FSWatcher  | null = null

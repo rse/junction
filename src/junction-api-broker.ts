@@ -34,7 +34,7 @@ type Options = {
 }
 
 /*  service  */
-export default class JunctionBroker {
+export class JunctionBroker {
     private mosquitto: Mosquitto | null = null
     private logger!:   Logger
     private started:   boolean          = false
