@@ -5,7 +5,7 @@
 #   build arguments (early)
 ARG         IMAGE_PREFIX=ghcr.io/rse/
 ARG         IMAGE_NAME=junction
-ARG         IMAGE_VERSION=0.9.5
+ARG         IMAGE_VERSION=0.9.6
 ARG         IMAGE_RELEASE=20260618
 ARG         IMAGE_ALIAS=latest
 
