@@ -5,8 +5,8 @@
 #   build arguments (early)
 ARG         IMAGE_PREFIX=ghcr.io/rse/
 ARG         IMAGE_NAME=junction
-ARG         IMAGE_VERSION=0.9.0
-ARG         IMAGE_RELEASE=20260527
+ARG         IMAGE_VERSION=0.9.5
+ARG         IMAGE_RELEASE=20260618
 ARG         IMAGE_ALIAS=latest
 
 #   derive image from a certain base image
@@ -29,12 +29,12 @@ RUN         mkdir -p -m 755 /app
 RUN         mkdir -p -m 755 /app/bin /app/etc /app/libexec /app/var /app/share
 
 #   install HAProxy
-COPY        --from=ghcr.io/rse/junction-haproxy:0.9.0-20260527 /app/bin/haproxy      /app/bin/
+COPY        --from=ghcr.io/rse/junction-haproxy:latest /app/bin/haproxy      /app/bin/
 RUN         chmod 755 /app/bin/haproxy
 
 #   install Mosquitto
-COPY        --from=ghcr.io/rse/junction-mosquitto:0.9.0-20260527 /app/bin/mosquitto* /app/bin/
-COPY        --from=ghcr.io/rse/junction-mosquitto:0.9.0-20260527 /app/libexec/*      /app/libexec/
+COPY        --from=ghcr.io/rse/junction-mosquitto:latest /app/bin/mosquitto* /app/bin/
+COPY        --from=ghcr.io/rse/junction-mosquitto:latest /app/libexec/*      /app/libexec/
 RUN         chmod 755 /app/bin/mosquitto*
 
 #   strip down binaries
