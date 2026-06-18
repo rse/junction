@@ -2,6 +2,12 @@
 ChangeLog
 =========
 
+0.9.6 (2026-06-18)
+------------------
+
+- IMPROVEMENT: support QUICK single-platform Docker builds in stx config
+- UPDATE: bump base versions and pin sub-images to "latest" in junction.dockerfile
+
 0.9.5 (2026-06-10)
 ------------------
 
