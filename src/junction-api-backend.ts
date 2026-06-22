@@ -122,6 +122,8 @@ export class JunctionBackend {
             mqtt = MQTT.connect(url.href, {
                 clientId: `junction-backend-${nanoid()}`,
                 path: pathname,
+                keepalive: 30,
+                reconnectPeriod: 1000,
                 ...(username !== undefined && username !== "" ? { username } : {}),
                 ...(password !== undefined && password !== "" ? { password } : {}),
                 rejectUnauthorized: false,
