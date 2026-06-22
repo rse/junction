@@ -2,6 +2,11 @@
 ChangeLog
 =========
 
+0.9.8 (2026-06-22)
+------------------
+
+- FEATURE: add shared logger module with a `logSink` option to capture structured log records across all services
+
 0.9.7 (2026-06-22)
 ------------------
 
