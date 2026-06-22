@@ -28,10 +28,12 @@ import { LRUCache }               from "lru-cache"
 import MQTT, { MqttClient }       from "mqtt"
 import MQTTp                      from "mqtt-plus"
 import type { Service, Source }   from "mqtt-plus"
-import pino                       from "pino"
-import type { Logger }            from "pino"
 import { DateTime }               from "luxon"
 import { nanoid }                 from "nanoid"
+
+/*  internal dependencies  */
+import { makeLogger }             from "./junction-api-logger.js"
+import type { JunctionLogger, LogLevel, LogSink } from "./junction-api-logger.js"
 
 /*  cache entry type  */
 interface Asset {
@@ -51,13 +53,13 @@ type API = {
 }
 
 /*  service options  */
-type LogLevel = "debug" | "info" | "warn" | "error"
 type Options = {
     httpUrl:  string
     mqttUrl?: string
     mqtt?:    MqttClient
     topic?:   string
     logLevel: LogLevel
+    logSink?: LogSink
     timeout:  number
     codec:    "json" | "cbor"
 }
@@ -73,7 +75,7 @@ export class JunctionFrontend {
     private hapi:     Hapi.Server | null = null
     private mqtt:     MqttClient  | null = null
     private mqttp:    MQTTp<API>  | null = null
-    private logger!:  Logger
+    private logger!:  JunctionLogger
     private started:  boolean            = false
     private ownsMqtt: boolean            = false
 
@@ -95,22 +97,7 @@ export class JunctionFrontend {
             throw new Error("exactly one of options.mqttUrl and options.mqtt must be provided")
 
         /*  establish logging facility  */
-        this.logger = pino({
-            level: this.options.logLevel,
-            formatters: {
-                level: (label) => ({ level: label.toUpperCase() })
-            },
-            timestamp: pino.stdTimeFunctions.isoTime,
-            transport: {
-                target: "pino-pretty",
-                options: {
-                    colorize:      process.stdout.isTTY,
-                    customColors:  "info:blue,warn:yellow,error:red,message:reset",
-                    translateTime: "UTC:yyyy-mm-dd HH:MM:ss.l",
-                    ignore:        "pid,hostname"
-                }
-            }
-        })
+        this.logger = makeLogger(this.options.logLevel, this.options.logSink)
         this.logger.info("starting Junction FRONTEND service")
 
         /*  establish HTTP/REST service  */

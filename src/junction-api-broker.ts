@@ -24,19 +24,21 @@
 
 /*  external dependencies  */
 import Mosquitto                 from "mosquitto"
-import pino                      from "pino"
-import type { Logger }           from "pino"
+
+/*  internal dependencies  */
+import { makeLogger }            from "./junction-api-logger.js"
+import type { JunctionLogger, LogLevel, LogSink } from "./junction-api-logger.js"
 
 /*  service options  */
-type LogLevel = "debug" | "info" | "warn" | "error"
 type Options = {
     logLevel: LogLevel
+    logSink?: LogSink
 }
 
 /*  service  */
 export class JunctionBroker {
     private mosquitto: Mosquitto | null = null
-    private logger!:   Logger
+    private logger!:   JunctionLogger
     private started:   boolean          = false
 
     /*  API construction  */
@@ -52,22 +54,7 @@ export class JunctionBroker {
             throw new Error("service already started")
 
         /*  establish logging facility  */
-        this.logger = pino({
-            level: this.options.logLevel,
-            formatters: {
-                level: (label) => ({ level: label.toUpperCase() })
-            },
-            timestamp: pino.stdTimeFunctions.isoTime,
-            transport: {
-                target: "pino-pretty",
-                options: {
-                    colorize:      process.stdout.isTTY,
-                    customColors:  "info:blue,warn:yellow,error:red,message:reset",
-                    translateTime: "UTC:yyyy-mm-dd HH:MM:ss.l",
-                    ignore:        "pid,hostname"
-                }
-            }
-        })
+        this.logger = makeLogger(this.options.logLevel, this.options.logSink)
         this.logger.info("starting Junction BROKER service")
 
         /*  parse listen URL for protocol/host/port and optional credentials  */

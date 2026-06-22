@@ -23,8 +23,9 @@
 */
 
 /*  just pass-through the sub-APIs  */
-export { JunctionFrontend }     from "./junction-api-frontend.js"
-export { JunctionBroker }       from "./junction-api-broker.js"
-export { JunctionBackend }      from "./junction-api-backend.js"
-export { JunctionOrchestrator } from "./junction-api-orchestrator.js"
+export { JunctionFrontend }                  from "./junction-api-frontend.js"
+export { JunctionBroker }                    from "./junction-api-broker.js"
+export { JunctionBackend }                   from "./junction-api-backend.js"
+export { JunctionOrchestrator }              from "./junction-api-orchestrator.js"
+export type { LogLevel, LogRecord, LogSink } from "./junction-api-logger.js"
 

@@ -31,8 +31,6 @@ import { spawn }                from "node:child_process"
 import type { ChildProcess }    from "node:child_process"
 
 /*  external dependencies  */
-import pino                     from "pino"
-import type { Logger }          from "pino"
 import dotenvx                  from "@dotenvx/dotenvx"
 import yaml                     from "js-yaml"
 import nunjucks                 from "nunjucks"
@@ -41,14 +39,18 @@ import * as v                   from "valibot"
 import { execa }                from "execa"
 import selfsigned               from "selfsigned"
 
+/*  internal dependencies  */
+import { makeLogger }           from "./junction-api-logger.js"
+import type { JunctionLogger, LogLevel, LogSink } from "./junction-api-logger.js"
+
 /*  service options  */
-type LogLevel = "debug" | "info" | "warn" | "error"
 type Options = {
     envFile:   string | undefined
     directory: string | undefined
     prune:     boolean
     dryRun:    boolean
     logLevel:  LogLevel
+    logSink?:  LogSink
 }
 
 /*  ==== YAML config schema ====  */
@@ -140,7 +142,7 @@ export class JunctionOrchestrator {
     private runDirOwned: boolean                      = false
     private config:      Config                | null = null
     private env:         nunjucks.Environment  | null = null
-    private logger!:     Logger
+    private logger!:     JunctionLogger
     private started:     boolean                      = false
 
     /*  API construction  */
@@ -156,22 +158,7 @@ export class JunctionOrchestrator {
             throw new Error("service already started")
 
         /*  establish logging facility  */
-        this.logger = pino({
-            level: this.options.logLevel,
-            formatters: {
-                level: (label) => ({ level: label.toUpperCase() })
-            },
-            timestamp: pino.stdTimeFunctions.isoTime,
-            transport: {
-                target: "pino-pretty",
-                options: {
-                    colorize:      process.stdout.isTTY,
-                    customColors:  "info:blue,warn:yellow,error:red,message:reset",
-                    translateTime: "UTC:yyyy-mm-dd HH:MM:ss.l",
-                    ignore:        "pid,hostname"
-                }
-            }
-        })
+        this.logger = makeLogger(this.options.logLevel, this.options.logSink)
         this.logger.info("starting Junction ORCHESTRATOR service")
 
         /*  load optional ".env" file (silent on success, no error if absent);

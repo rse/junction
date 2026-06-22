@@ -35,9 +35,11 @@ import chokidar                   from "chokidar"
 import type { FSWatcher }         from "chokidar"
 import { lookup }                 from "mime-types"
 import { fileTypeFromFile }       from "file-type"
-import pino                       from "pino"
-import type { Logger }            from "pino"
 import { nanoid }                 from "nanoid"
+
+/*  internal dependencies  */
+import { makeLogger }             from "./junction-api-logger.js"
+import type { JunctionLogger, LogLevel, LogSink } from "./junction-api-logger.js"
 
 /*  MQTT API type  */
 type API = {
@@ -47,13 +49,13 @@ type API = {
 }
 
 /*  service options  */
-type LogLevel = "debug" | "info" | "warn" | "error"
 type Options = {
     directory: string
     mqttUrl?:  string
     mqtt?:     MqttClient
     topic?:    string
     logLevel:  LogLevel
+    logSink?:  LogSink
     watch:     boolean
     exclude:   string[]
     timeout:   number
@@ -65,7 +67,7 @@ export class JunctionBackend {
     private mqtt:     MqttClient | null = null
     private mqttp:    MQTTp<API> | null = null
     private watcher:  FSWatcher  | null = null
-    private logger!:  Logger
+    private logger!:  JunctionLogger
     private started:  boolean           = false
     private ownsMqtt: boolean           = false
 
@@ -87,22 +89,7 @@ export class JunctionBackend {
             throw new Error("exactly one of options.mqttUrl and options.mqtt must be provided")
 
         /*  establish logging facility  */
-        this.logger = pino({
-            level: this.options.logLevel,
-            formatters: {
-                level: (label) => ({ level: label.toUpperCase() })
-            },
-            timestamp: pino.stdTimeFunctions.isoTime,
-            transport: {
-                target: "pino-pretty",
-                options: {
-                    colorize:      process.stdout.isTTY,
-                    customColors:  "info:blue,warn:yellow,error:red,message:reset",
-                    translateTime: "UTC:yyyy-mm-dd HH:MM:ss.l",
-                    ignore:        "pid,hostname"
-                }
-            }
-        })
+        this.logger = makeLogger(this.options.logLevel, this.options.logSink)
         this.logger.info("starting Junction BACKEND service")
 
         /*  establish MQTT service  */
