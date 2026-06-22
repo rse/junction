@@ -2,6 +2,11 @@
 ChangeLog
 =========
 
+0.9.7 (2026-06-22)
+------------------
+
+- BUGFIX: increase HAProxy tunnel and tune MQTT keepalive/reconnect timeouts to circumvent connection problems
+
 0.9.6 (2026-06-18)
 ------------------
 
