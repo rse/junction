@@ -2,6 +2,13 @@
 ChangeLog
 =========
 
+0.9.9 (2026-07-13)
+------------------
+
+- FEATURE: add backend "share" option and CLI -s for MQTT5 shared-subscription load-balancing
+- IMPROVEMENT: use linux/arm64 for QUICK Docker builds on en4 host
+- BUGFIX: skip proxy backend SSL verification in HAProxy router to avoid cert problems
+
 0.9.8 (2026-06-22)
 ------------------
 
