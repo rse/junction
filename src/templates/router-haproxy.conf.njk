@@ -53,7 +53,7 @@ backend be_proxy
     mode            tcp
     balance         roundrobin
     {%- for i in range(0, proxy.instances) %}
-    server          proxy-{{ ((i | int) + 1) | pad(2, '0') }} {{ proxy.frontend.addr }}:{{ (proxy.frontend.port | int) + (i | int) }} maxconn 10000 check inter 2000 rise 2 fall 5
+    server          proxy-{{ ((i | int) + 1) | pad(2, '0') }} {{ proxy.frontend.addr }}:{{ (proxy.frontend.port | int) + (i | int) }} maxconn 10000 check-ssl verify none inter 2000 rise 2 fall 5
     {%- endfor %}
 
 {%- if router.acme %}
