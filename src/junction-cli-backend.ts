@@ -39,6 +39,7 @@ type Opts = {
     logLevel:  LogLevel
     timeout:   number
     codec:     Codec
+    share?:    string
 }
 
 /*  configure a commander sub-command for the backend service  */
@@ -68,6 +69,8 @@ export function configureCommand (program: Command): Command {
             "MQTT+ payload codec")
             .choices([ "json", "cbor" ])
             .default("json"))
+        .addOption(new Option("-s, --share <group>",
+            "MQTT5 shared-subscription group for load-balancing fetch requests across a backend cluster"))
         .action(async (opts: Opts) => {
             /*  establish service  */
             const service = new JunctionBackend({
@@ -77,7 +80,8 @@ export function configureCommand (program: Command): Command {
                 watch:     opts.watch,
                 exclude:   opts.exclude,
                 timeout:   opts.timeout,
-                codec:     opts.codec
+                codec:     opts.codec,
+                share:     opts.share
             })
             await service.start()
 

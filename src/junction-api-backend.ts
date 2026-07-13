@@ -60,6 +60,7 @@ type Options = {
     exclude:   string[]
     timeout:   number
     codec:     "json" | "cbor"
+    share?:    string
 }
 
 /*  service  */
@@ -282,7 +283,7 @@ export class JunctionBackend {
         }
 
         /*  configure MQTT service for frontend  */
-        mqttp.source("backend/fetch", async (filePath, info) => {
+        mqttp.source({ name: "backend/fetch", share: this.options.share, callback: async (filePath, info) => {
             /*  determine filesystem segments  */
             let filename = path.normalize(path.resolve(baseDir, filePath))
 
@@ -340,7 +341,7 @@ export class JunctionBackend {
             info.meta.path = filePath
             info.meta.type = type
             info.meta.modified = stat.mtimeMs
-        })
+        }})
 
         /*  update state  */
         this.started = true
