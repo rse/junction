@@ -38,10 +38,11 @@ proxy:
     instances:  16
     frontend:   { addr: 5.9.145.42, port: 10000 }
     tls:
-        type:  lets-encrypt
-        email: ralf.engelschall@msg.group
-        addr:  5.9.145.42
-        port:  9999
+        type:    lets-encrypt
+        staging: true
+        email:   ralf.engelschall@msg.group
+        addr:    5.9.145.42
+        port:    9999
         fqdn:
             -    api.msg-broadcast.com
             - api.qa.msg-broadcast.com

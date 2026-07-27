@@ -44,27 +44,8 @@ listen stats
     stats enable
     stats uri       /
 
-{%- if proxy.tls.type == "lets-encrypt" %}
-
-acme letsencrypt
-    directory       https://acme-v02.api.letsencrypt.org/directory
-    challenge       HTTP-01
-    account-key     ./proxy-acme.key
-    contact         {{ proxy.tls.email }}
-
-crt-store
-    crt-base        ./proxy-cert.d
-    load crt        "{{ proxy.tls.fqdn[0] }}.pem" acme "letsencrypt"
-
-{%- endif %}
-
 frontend fe
-{%- if proxy.tls.type == "lets-encrypt" %}
-    bind            {{ proxy.tls.addr }}:{{ proxy.tls.port }} name acme
-    bind            {{ proxy.frontend.addr }}:{{ (proxy.frontend.port | int) + (instance.index | int) }} name http ssl crt ./proxy-cert.d
-{%- else %}
     bind            {{ proxy.frontend.addr }}:{{ (proxy.frontend.port | int) + (instance.index | int) }} name http ssl crt ./proxy-sv.pem
-{%- endif %}
     mode            http
     option          httplog
 
@@ -76,13 +57,7 @@ frontend fe
     http-response   set-header Access-Control-Allow-Methods     GET,\ HEAD,\ OPTIONS,\ POST,\ PUT if { capture.req.hdr(0) -m found }
     http-response   set-header Access-Control-Allow-Credentials true                              if { capture.req.hdr(0) -m found }
 
-{%- if proxy.tls.type == "lets-encrypt" %}
-    acl             is_acme path_beg /.well-known/acme-challenge/
-    http-request    return status 200 content-type text/plain lf-string "%[acme.challenge]" if is_acme
-    redirect        scheme https code 301 if !{ ssl_fc } !is_acme
-{%- else %}
     redirect        scheme https code 301 if !{ ssl_fc }
-{%- endif %}
 
 {%- for entry in proxy.backend %}
 {%- set class = entry.forward.split(":")[0] %}

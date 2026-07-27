@@ -2,6 +2,12 @@
 ChangeLog
 =========
 
+0.9.10 (2026-07-27)
+-------------------
+
+- FEATURE: acquire and renew Let's Encrypt certificates in the orchestrator via @certd/acme-client
+- FEATURE: add optional proxy.tls.staging option to order against the Let's Encrypt staging directory
+
 0.9.9 (2026-07-13)
 ------------------
 

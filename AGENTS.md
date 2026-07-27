@@ -75,8 +75,11 @@ HTTP client → [frontend] →(MQTT)→ broker →(MQTT)→ [backend] → filesy
   templates from `src/templates/` into a *run directory*, then spawns and
   supervises the whole topology. Pass 1 generates router (HAProxy or
   nftables), reverse-proxy (HAProxy), Mosquitto broker configs + ACL +
-  password files, and (for `self-signed` TLS) a CA + server key/cert
-  bundle via `selfsigned`. Pass 2 spawns `mosquitto`, `haproxy`, and
+  password files, and a server key/cert bundle — for `self-signed` TLS a
+  CA + server pair via `selfsigned`, for `lets-encrypt` TLS a CA-signed
+  pair acquired via `src/junction-api-acme.ts`. Both TLS types end up in
+  the same combined `proxy-sv.pem` (leaf + chain + key) that HAProxy
+  loads. Pass 2 spawns `mosquitto`, `haproxy`, and
   `junction frontend` child processes (skipped under `--dry-run`),
   capturing their stdout/stderr into pino and terminating them on
   shutdown. For the `nftables` router type, pass 2 additionally applies
@@ -88,6 +91,14 @@ HTTP client → [frontend] →(MQTT)→ broker →(MQTT)→ [backend] → filesy
   and will likely fail. The `haproxy` router type, by contrast, is a
   plain userspace child needing no special privileges.
   Constructor: `new JunctionOrchestrator(configFile, options)`.
+  For `lets-encrypt` TLS it additionally owns a `JunctionAcme` facility
+  (`src/junction-api-acme.ts`, built on `@certd/acme-client`) which binds
+  a Hapi *HTTP-01* challenge service on `proxy.tls.addr:proxy.tls.port`
+  for the orchestrator's whole lifetime — the port the router DNATs
+  port 80 to — and a daily renewal timer that re-orders below 30 days of
+  remaining validity and hot-loads the new bundle into every running
+  HAProxy through its `proxy-NN.sock` admin socket. An optional
+  `proxy.tls.staging` selects the Let's Encrypt staging directory.
   Config is loaded via `@dotenvx/dotenvx` (`.env`, optionally overlaid
   with `--env-file`), parsed with `js-yaml`, schema-validated with
   `valibot`, and supports `JUNCTION_*` environment-variable overrides

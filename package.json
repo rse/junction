@@ -43,6 +43,7 @@
         "mosquitto":                  "1.1.0",
         "execa":                      "9.6.1",
         "selfsigned":                 "5.5.0",
+        "@certd/acme-client":         "1.42.6",
         "nanoid":                     "5.1.11",
         "nunjucks":                   "3.2.4",
         "@rse/nunjucks-addons":       "2.2.0",

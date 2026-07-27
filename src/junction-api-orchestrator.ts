@@ -25,6 +25,7 @@
 /*  built-in dependencies  */
 import fs                       from "node:fs/promises"
 import os                       from "node:os"
+import net                      from "node:net"
 import path                     from "node:path"
 import { fileURLToPath }        from "node:url"
 import { spawn }                from "node:child_process"
@@ -40,8 +41,10 @@ import { execa }                from "execa"
 import selfsigned               from "selfsigned"
 
 /*  internal dependencies  */
-import { makeLogger }           from "./junction-api-logger.js"
+import { makeLogger }                             from "./junction-api-logger.js"
 import type { JunctionLogger, LogLevel, LogSink } from "./junction-api-logger.js"
+import { JunctionAcme, certificateInfo }          from "./junction-api-acme.js"
+import type { Certificate }                       from "./junction-api-acme.js"
 
 /*  service options  */
 type Options = {
@@ -89,11 +92,12 @@ const ConfigObject = v.strictObject({
         instances: Pos,
         frontend:  HostPort,
         tls: v.pipe(v.strictObject({
-            type:  v.picklist([ "self-signed", "lets-encrypt" ]),
-            email: v.string(),
-            addr:  v.string(),
-            port:  v.optional(Port),
-            fqdn:  v.array(v.string())
+            type:    v.picklist([ "self-signed", "lets-encrypt" ]),
+            email:   v.string(),
+            addr:    v.string(),
+            port:    v.optional(Port),
+            staging: v.optional(v.boolean()),
+            fqdn:    v.array(v.string())
         }), v.check((tls) => tls.type !== "lets-encrypt" || tls.port !== undefined,
             "tls.port is required when tls.type is \"lets-encrypt\""
         )),
@@ -134,6 +138,11 @@ type Child = {
     process: ChildProcess
 }
 
+/*  interval between two certificate renewal checks and the remaining
+    certificate validity below which a renewal is actually performed  */
+const renewInterval  = 24 * 60 * 60 * 1000
+const renewThreshold = 30 * 24 * 60 * 60 * 1000
+
 /*  service  */
 export class JunctionOrchestrator {
     /*  internal state  */
@@ -142,6 +151,8 @@ export class JunctionOrchestrator {
     private runDirOwned: boolean                      = false
     private config:      Config                | null = null
     private env:         nunjucks.Environment  | null = null
+    private acme:        JunctionAcme          | null = null
+    private renewTimer:  NodeJS.Timeout        | null = null
     private logger!:     JunctionLogger
     private started:     boolean                      = false
 
@@ -236,6 +247,21 @@ export class JunctionOrchestrator {
         nunjucksAddons(env)
         this.env = env
 
+        /*  establish the ACME facility (for Let's Encrypt TLS), which permanently owns
+            the challenge service, so both the order below and all later renewals can
+            be satisfied; under dry-run no port is bound and no certificate is ordered  */
+        if (config.proxy.tls.type === "lets-encrypt" && !this.options.dryRun) {
+            const acme = new JunctionAcme({
+                addr:    config.proxy.tls.addr,
+                port:    config.proxy.tls.port!,
+                email:   config.proxy.tls.email,
+                staging: config.proxy.tls.staging ?? false,
+                logger:  this.logger
+            })
+            await acme.start()
+            this.acme = acme
+        }
+
         /*  PASS 1: generate config files  */
         this.logger.info("pass 1: generating config files")
         await this.generate()
@@ -250,6 +276,18 @@ export class JunctionOrchestrator {
         }
         else
             this.logger.info("pass 2: spawning child processes skipped (dry-run)")
+
+        /*  establish the certificate renewal timer (for Let's Encrypt TLS): a renewed
+            certificate is hot-loaded into the running HAProxy instances  */
+        if (this.acme !== null)
+            this.renewTimer = setInterval(() => {
+                (async () => {
+                    if (await this.ensureCertificate())
+                        await this.reloadCertificate()
+                })().catch((err: any) => {
+                    this.logger.error(`acme: certificate renewal failed: ${err.message}`)
+                })
+            }, renewInterval)
 
         /*  update state  */
         this.started = true
@@ -410,6 +448,8 @@ export class JunctionOrchestrator {
                 this.logger.info(`pass 1: wrote: "${dstFile}"`)
             }
         }
+        else if (config.proxy.tls.type === "lets-encrypt")
+            await this.ensureCertificate()
 
         /*  generate PROXY configuration  */
         const proxyCount = config.proxy?.instances ?? 0
@@ -485,6 +525,95 @@ export class JunctionOrchestrator {
                 await fs.chmod(dstFile, 0o600)
                 this.logger.info(`pass 1: wrote: "${dstFile}"`)
             }
+        }
+    }
+
+    /*  read an optional artifact from the run directory  */
+    private async readArtifact (file: string) {
+        return fs.readFile(path.join(this.runDir!, file), "utf8").catch(() => null)
+    }
+
+    /*  persist the ACME account key and the acquired key/cert pair, including the
+        combined PEM bundle (server cert + CA chain cert + server key) for HAProxy  */
+    private async writeCertificate (cert: Certificate) {
+        const runDir = this.runDir!
+        const nl = (pem: string) => pem.replace(/\n*$/, "\n")
+        const artifacts: Array<{ file: string, data: string, mode: number }> = [
+            { file: "proxy-acme.key", data: nl(cert.accountKey),          mode: 0o600 },
+            { file: "proxy-sv.crt",   data: nl(cert.cert),                mode: 0o644 },
+            { file: "proxy-sv.key",   data: nl(cert.key),                 mode: 0o600 },
+            { file: "proxy-sv.pem",   data: nl(cert.cert) + nl(cert.key), mode: 0o600 }
+        ]
+        for (const a of artifacts) {
+            const dstFile = path.join(runDir, a.file)
+            await fs.writeFile(dstFile, a.data, { encoding: "utf8", mode: a.mode })
+            await fs.chmod(dstFile, a.mode)
+            this.logger.info(`acme: wrote: "${dstFile}"`)
+        }
+    }
+
+    /*  ensure a sufficient CA-signed server key/cert pair exists, ordering a fresh
+        one via ACME when it is missing, incomplete, or close to its expiry; returns
+        whether a fresh certificate was actually acquired  */
+    private async ensureCertificate () {
+        const config = this.config!
+        const acme   = this.acme
+
+        /*  under dry-run no ACME facility exists and no certificate is ordered  */
+        if (acme === null) {
+            this.logger.info("acme: certificate acquisition skipped (dry-run)")
+            return false
+        }
+
+        /*  reuse the previous certificate while it still covers all configured
+            FQDNs and is not yet close to its expiry  */
+        const accountKey = await this.readArtifact("proxy-acme.key")
+        const certOld    = await this.readArtifact("proxy-sv.crt")
+        if (certOld !== null) {
+            const info    = certificateInfo(certOld)
+            const left    = info.notAfter.getTime() - Date.now()
+            const days    = Math.floor(left / (24 * 60 * 60 * 1000))
+            const covered = config.proxy.tls.fqdn.every((fqdn) => info.fqdn.includes(fqdn))
+            if (covered && left > renewThreshold) {
+                this.logger.info(`acme: reusing certificate (valid for ${days} more days)`)
+                return false
+            }
+            this.logger.info(`acme: certificate insufficient (covered: ${covered}, days: ${days})`)
+        }
+
+        /*  order a fresh certificate and persist the resulting artifacts  */
+        const cert = await acme.acquire(config.proxy.tls.fqdn, accountKey)
+        await this.writeCertificate(cert)
+        return true
+    }
+
+    /*  hot-load the current certificate bundle into all running HAProxy instances
+        through their admin sockets, which avoids restarting them for a renewal  */
+    private async reloadCertificate () {
+        const config = this.config!
+        const runDir = this.runDir!
+        const pem = await fs.readFile(path.join(runDir, "proxy-sv.pem"), "utf8")
+        const payload =
+            `set ssl cert ./proxy-sv.pem <<\n${pem}\n\n` +
+            "commit ssl cert ./proxy-sv.pem\n"
+        for (let i = 0; i < config.proxy.instances; i++) {
+            const file = path.join(runDir, `proxy-${String(i).padStart(2, "0")}.sock`)
+            const tag  = `proxy[${i}]`
+            await new Promise<void>((resolve) => {
+                let output = ""
+                const conn = net.createConnection(file)
+                conn.on("connect", () => { conn.end(payload) })
+                conn.on("data", (data) => { output += data.toString() })
+                conn.on("error", (err: any) => {
+                    this.logger.warn(`acme: reload: ${tag}: "${file}": ${err.message}`)
+                })
+                conn.on("close", () => {
+                    for (const line of output.split(/\r?\n/))
+                        if (line !== "")
+                            this.logger.info(`acme: reload: ${tag}: ${line}`)
+                    resolve()
+                })
+            })
         }
     }
 
@@ -676,6 +805,12 @@ export class JunctionOrchestrator {
         if (!this.started)
             throw new Error("service not started")
 
+        /*  terminate the certificate renewal timer  */
+        if (this.renewTimer !== null) {
+            clearInterval(this.renewTimer)
+            this.renewTimer = null
+        }
+
         /*  terminate children  */
         if (this.children !== null) {
             this.logger.info("stopping child processes")
@@ -689,6 +824,12 @@ export class JunctionOrchestrator {
                     c.process.on("exit", () => resolve())
             })))
             this.children = null
+        }
+
+        /*  terminate the ACME facility  */
+        if (this.acme !== null) {
+            await this.acme.stop()
+            this.acme = null
         }
 
         /*  remove run dir only when auto-created  */
