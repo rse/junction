@@ -5,12 +5,12 @@
 #   build arguments (early)
 ARG         IMAGE_PREFIX=ghcr.io/rse/
 ARG         IMAGE_NAME=junction
-ARG         IMAGE_VERSION=0.9.9
-ARG         IMAGE_RELEASE=20260713
+ARG         IMAGE_VERSION=0.9.10
+ARG         IMAGE_RELEASE=20260727
 ARG         IMAGE_ALIAS=latest
 
 #   derive image from a certain base image
-FROM        node:26.2-trixie
+FROM        node:26.5-trixie
 
 #   prepare Debian
 RUN         apt-get update && \
