@@ -43,19 +43,20 @@ proxy:
         addr:  5.9.145.42
         port:  9999
         fqdn:
-            -        msg-broadcast.com
             -    api.msg-broadcast.com
-            -     qa.msg-broadcast.com
             - api.qa.msg-broadcast.com
             -     dv.msg-broadcast.com
             - api.dv.msg-broadcast.com
     backend:
-        - { host-match: "^(?:api\\.pr\\.)?msg-broadcast\\.com$", path-match: "^.*",    path-subst: "",   forward: "broker/pr" }
-        - { host-match: "^api\\.qa\\.msg-broadcast\\.com$",      path-match: "^.*",    path-subst: "",   forward: "broker/qa" }
-        - { host-match: "^api\\.dv\\.msg-broadcast\\.com$",      path-match: "^.*",    path-subst: "",   forward: "broker/dv" }
-        - { host-match: "^msg-broadcast\\.com$",                 path-match: "^(.*)$", path-subst: "$1", forward: "gateway/pr" }
-        - { host-match: "^qa\\.msg-broadcast\\.com$",            path-match: "^(.*)$", path-subst: "$1", forward: "gateway/qa" }
-        - { host-match: "^dv\\.msg-broadcast\\.com$",            path-match: "^(.*)$", path-subst: "$1", forward: "gateway/dv" }
+        - { host-match: "^msg-broadcast\\.com$",            path-match: "^(.*)$",     path-subst: "$1", forward: "gateway:pr" }
+        - { host-match: "^api\\.msg-broadcast\\.com$",      path-match: "^/client/$", path-subst: "",   forward: "broker:pr:frontend" }
+        - { host-match: "^api\\.msg-broadcast\\.com$",      path-match: "^/server/$", path-subst: "",   forward: "broker:pr:backend" }
+        - { host-match: "^qa\\.msg-broadcast\\.com$",       path-match: "^(.*)$",     path-subst: "$1", forward: "gateway:qa" }
+        - { host-match: "^api\\.qa\\.msg-broadcast\\.com$", path-match: "^/client/$", path-subst: "",   forward: "broker:qa:frontend" }
+        - { host-match: "^api\\.qa\\.msg-broadcast\\.com$", path-match: "^/server/$", path-subst: "",   forward: "broker:qa:backend" }
+        - { host-match: "^dv\\.msg-broadcast\\.com$",       path-match: "^(.*)$",     path-subst: "$1", forward: "gateway:dv" }
+        - { host-match: "^api\\.dv\\.msg-broadcast\\.com$", path-match: "^/client/$", path-subst: "",   forward: "broker:dv:frontend" }
+        - { host-match: "^api\\.dv\\.msg-broadcast\\.com$", path-match: "^/server/$", path-subst: "",   forward: "broker:dv:backend" }
 
 #   gateway (Junction frontend)
 gateway:
